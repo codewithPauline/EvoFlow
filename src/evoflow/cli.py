@@ -9,6 +9,7 @@ import yaml
 from evoflow import __version__
 from evoflow.config import EvoFlowConfig
 from evoflow.io.validation import validate_config
+from evoflow.modules.qc import run_qc
 from evoflow.modules.registry import MODULES, validate_modules
 
 app = typer.Typer(help="EvoFlow — from variants to evolutionary insight.")
@@ -53,6 +54,37 @@ def plan(config: Annotated[Path, typer.Argument(exists=True)]) -> None:
     typer.echo(f"Project: {cfg.project}")
     for index, module in enumerate(cfg.modules, start=1):
         typer.echo(f"{index}. {module}: {MODULES[module]}")
+
+
+@app.command()
+def qc(
+    config: Annotated[Path, typer.Argument(exists=True)],
+    min_maf: Annotated[
+        float,
+        typer.Option(help="Minimum minor allele frequency for the QC pass flag."),
+    ] = 0.0,
+    max_missing: Annotated[
+        float,
+        typer.Option(help="Maximum allowed missing-genotype proportion per variant."),
+    ] = 1.0,
+) -> None:
+    """Run native variant and sample QC on a VCF/VCF.gz file."""
+    cfg = EvoFlowConfig.from_yaml(config)
+    for message in validate_config(cfg):
+        typer.echo(f"✓ {message}")
+
+    summary = run_qc(
+        cfg.vcf,
+        cfg.output_dir,
+        min_maf=min_maf,
+        max_missing=max_missing,
+    )
+    typer.echo(f"✓ QC complete: {summary.samples} samples, {summary.variants} variants")
+    typer.echo(
+        f"✓ {summary.retained_variants} variants pass MAF/missingness thresholds "
+        f"(call rate {summary.overall_call_rate:.3f})"
+    )
+    typer.echo(f"✓ Results: {cfg.output_dir / 'qc'}")
 
 
 if __name__ == "__main__":
