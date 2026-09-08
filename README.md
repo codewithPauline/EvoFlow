@@ -15,18 +15,18 @@
 
 ## Why EvoFlow?
 
-Population-genomic studies usually require many independent steps: input validation, variant filtering, sample quality control, PCA, ancestry inference, diversity statistics, FST, spatial analyses, selection scans, genotype-environment association, plotting, and reporting.
+Population-genomic studies rarely involve a single analysis. A typical project may require variant and sample quality control, filtering, PCA, ancestry inference, diversity statistics, FST, spatial analyses, selection scans, genotype-environment association, visualization, and reproducible reporting.
 
-Those steps are often spread across different command-line tools, R scripts, Python notebooks, file formats, and software environments. That fragmentation makes analyses harder to reproduce, audit, extend, and transfer between organisms or projects.
+In practice, those steps are often distributed across different command-line tools, R scripts, Python notebooks, file formats, environments, and plotting workflows. That fragmentation can make analyses difficult to reproduce, audit, extend, and transfer between projects or organisms.
 
 **EvoFlow is being built as a reproducible orchestration layer for that workflow.**
 
-The project is designed around five principles:
+The project is guided by five principles:
 
-1. **Reproducibility first** — inputs, configuration, parameters, software versions, and outputs should remain traceable.
+1. **Reproducibility first** — inputs, parameters, software versions, and outputs should remain traceable.
 2. **Species agnostic** — development examples may use salamander data, but the software is intended for any organism.
 3. **Modular analyses** — researchers should be able to run only the analyses they need.
-4. **Transparent methods** — EvoFlow should expose methods and parameters rather than hide them behind an opaque interface.
+4. **Transparent methods** — statistical assumptions and parameters should remain visible rather than hidden behind an opaque interface.
 5. **Scientific outputs** — the end product should be interpretable tables, figures, provenance, and reports, not merely successful commands.
 
 ---
@@ -45,6 +45,9 @@ The project is designed around five principles:
           +------------------+
           | Variant/sample QC|
           +------------------+
+                    |
+                    v
+             filtered VCF
                     |
        +------------+-------------+
        |            |             |
@@ -74,13 +77,13 @@ The project is designed around five principles:
           Reproducible scientific report
 ```
 
-The full workflow is the long-term target. The repository clearly separates **implemented** functionality from **planned** modules.
+The complete workflow is the long-term target. EvoFlow deliberately distinguishes functionality that works today from modules that remain under development.
 
 ---
 
 ## Development status
 
-EvoFlow is in **active early development**. The software foundation is installable and tested, and the first biological analysis engine — native VCF quality control — is now implemented.
+EvoFlow is in **active early development**. The software foundation is installable and tested, and two scientific components are now functional: native VCF quality control and population-genomic PCA.
 
 | Component | Purpose | Status |
 |---|---|---|
@@ -88,14 +91,15 @@ EvoFlow is in **active early development**. The software foundation is installab
 | Command-line interface | User-facing EvoFlow commands | ✅ Available |
 | YAML configuration | Reproducible project configuration | ✅ Available |
 | VCF / metadata validation | Confirms files exist and sample IDs match exactly | ✅ Available |
-| Analysis registry | Defines supported EvoFlow modules | ✅ Available |
 | Native VCF QC engine | Streams VCF/VCF.gz and computes genomic QC metrics | ✅ Available |
-| QC tables | Run-, sample-, and variant-level CSV/JSON summaries | ✅ Available |
-| MAF / missingness thresholds | Configurable per-variant QC decisions | ✅ Available |
-| Filtered VCF | Writes variants that pass configured QC thresholds | ✅ Available |
+| QC filtering | MAF/missingness decisions and filtered VCF output | ✅ Available |
+| QC tables | Run-, sample-, and variant-level summaries | ✅ Available |
+| QC figures | PNG/PDF diagnostic plots | ✅ Available |
+| GQ / depth summaries | Uses FORMAT `GQ` and `DP` when present | ✅ Available |
+| PCA engine | Allele-frequency-standardized population-genomic PCA | ✅ Available |
+| PCA tables | Scores, loadings, variance, summary | ✅ Available |
+| PCA figures | Scree and PC1–PC2 plots in PNG/PDF | ✅ Available |
 | Continuous integration | Install, lint, and test on Python 3.10–3.12 | ✅ Passing |
-| QC figures | Publication-quality diagnostic plots | 🚧 In development |
-| PCA | Population-genomic dimensionality reduction | 🧭 Planned |
 | Population structure | Ancestry / clustering workflow | 🧭 Planned |
 | Diversity statistics | Population diversity summaries | 🧭 Planned |
 | FST | Population differentiation | 🧭 Planned |
@@ -104,91 +108,6 @@ EvoFlow is in **active early development**. The software foundation is installab
 | GEA | Genotype-environment association | 🧭 Planned |
 | Workflow execution engine | Ordered module execution and provenance | 🧭 Planned |
 | Automated report | Integrated figures, tables, methods, and provenance | 🧭 Planned |
-
----
-
-## What works today
-
-### 1. Project configuration
-
-EvoFlow projects are described with YAML:
-
-```yaml
-project: salamander-demo
-vcf: data/variants.vcf.gz
-metadata: data/samples.csv
-output_dir: evoflow-results
-modules:
-  - qc
-  - pca
-  - structure
-  - diversity
-  - fst
-  - spatial
-  - selection
-  - gea
-  - report
-```
-
-At this stage, `qc` is executable. The remaining module names define the planned workflow vocabulary and are being implemented incrementally.
-
-### 2. Strict input validation
-
-Before QC runs, EvoFlow checks that:
-
-- the configured VCF exists;
-- the metadata CSV exists;
-- the metadata contains a `sample` column;
-- metadata sample IDs are non-empty and unique;
-- VCF sample IDs are unique; and
-- the VCF and metadata contain **exactly the same sample IDs**.
-
-That last check is intentionally strict. Silent sample mismatches can invalidate downstream population-genomic analyses, so EvoFlow fails early instead of guessing.
-
-### 3. Native streaming VCF QC
-
-The first QC engine reads `.vcf` and `.vcf.gz` files without loading the entire variant dataset into memory.
-
-It currently calculates:
-
-- number of samples;
-- number of variants;
-- SNP count;
-- biallelic SNP count;
-- multiallelic variant count;
-- transition count;
-- transversion count;
-- Ti/Tv ratio when defined;
-- total genotype calls;
-- called and missing genotypes;
-- overall genotype call rate;
-- per-sample call rate;
-- per-sample missingness;
-- per-sample observed heterozygosity;
-- per-sample mean depth when `DP` is available;
-- per-site call rate and missingness;
-- alternate-allele frequency;
-- biallelic minor-allele frequency; and
-- per-site mean depth when `DP` is available.
-
-### 4. Configurable QC thresholds and filtered VCF output
-
-The QC command can filter variants using minor-allele-frequency and missingness thresholds:
-
-```bash
-evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
-```
-
-Each variant receives a `passes_qc` decision in `variant_qc.csv`. Variants that pass are also written to `filtered.vcf`.
-
-The filtered VCF preserves the original VCF metadata/header and records the EvoFlow thresholds in additional header lines:
-
-```text
-##evoflow_qc_min_maf=0.05
-##evoflow_qc_max_missing=0.2
-```
-
-For multiallelic sites, the current engine does not assign a biallelic-style MAF; those sites are therefore evaluated by missingness but not by the MAF threshold.
 
 ---
 
@@ -246,37 +165,125 @@ evoflow init \
 
 This creates `evoflow.yaml`.
 
-### 2. Validate the inputs
+### 2. Validate genomic and metadata inputs
 
 ```bash
 evoflow validate evoflow.yaml
 ```
 
-Successful validation confirms that the genomic and metadata sample identities match.
+Validation confirms that the configured files exist and that VCF and metadata sample identities match exactly.
 
-### 3. Inspect the analysis plan
+### 3. Inspect the configured workflow
 
 ```bash
 evoflow plan evoflow.yaml
 ```
 
-### 4. Run VCF quality control
-
-```bash
-evoflow qc evoflow.yaml
-```
-
-Or apply explicit QC thresholds:
+### 4. Run quality control
 
 ```bash
 evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
 ```
 
+### 5. Run PCA
+
+```bash
+evoflow pca evoflow.yaml --n-components 10
+```
+
+If `evoflow-results/qc/filtered.vcf` exists, PCA uses it automatically. To force PCA to use the original configured VCF:
+
+```bash
+evoflow pca evoflow.yaml --use-raw
+```
+
 ---
 
-## QC output
+## Project configuration
 
-The QC command writes:
+A project is described with YAML:
+
+```yaml
+project: salamander-demo
+vcf: data/variants.vcf.gz
+metadata: data/samples.csv
+output_dir: evoflow-results
+modules:
+  - qc
+  - pca
+  - structure
+  - diversity
+  - fst
+  - spatial
+  - selection
+  - gea
+  - report
+```
+
+At present, `qc` and `pca` are executable. The remaining module names define EvoFlow's planned analysis vocabulary.
+
+---
+
+## Input validation
+
+Before analysis, EvoFlow checks that:
+
+- the configured VCF exists;
+- the metadata CSV exists;
+- metadata contains a `sample` column;
+- metadata sample IDs are non-empty and unique;
+- VCF sample IDs are unique; and
+- VCF and metadata contain **exactly the same sample IDs**.
+
+This strict behavior is intentional. Silent sample mismatches can invalidate downstream population-genetic analyses, so EvoFlow fails early instead of guessing.
+
+---
+
+# Quality-control engine
+
+## Native streaming VCF QC
+
+The QC engine reads `.vcf` and `.vcf.gz` files without loading the complete variant dataset into memory.
+
+It currently calculates:
+
+- sample count;
+- variant count;
+- SNP count;
+- biallelic SNP count;
+- multiallelic variant count;
+- transition and transversion counts;
+- Ti/Tv ratio when defined;
+- called and missing genotype counts;
+- overall genotype call rate;
+- per-sample call rate and missingness;
+- per-sample observed heterozygosity;
+- per-site call rate and missingness;
+- alternate-allele frequency;
+- biallelic minor-allele frequency;
+- per-sample and per-site mean depth when FORMAT `DP` is available; and
+- per-sample and per-site mean genotype quality when FORMAT `GQ` is available.
+
+## QC filtering
+
+Variants can be evaluated with explicit MAF and missingness thresholds:
+
+```bash
+evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
+```
+
+Each variant receives a `passes_qc` decision. Passing records are also written to `filtered.vcf`.
+
+The output VCF records the selected thresholds in its header:
+
+```text
+##evoflow_qc_min_maf=0.05
+##evoflow_qc_max_missing=0.2
+```
+
+For multiallelic sites, the current implementation does not assign a biallelic-style MAF. Those records are evaluated by missingness but not by the MAF threshold.
+
+## QC outputs
 
 ```text
 evoflow-results/
@@ -284,51 +291,96 @@ evoflow-results/
     ├── qc_summary.json
     ├── sample_qc.csv
     ├── variant_qc.csv
-    └── filtered.vcf
+    ├── filtered.vcf
+    ├── sample_call_rate.png
+    ├── sample_call_rate.pdf
+    ├── sample_heterozygosity.png
+    ├── sample_heterozygosity.pdf
+    ├── sample_depth.png
+    ├── sample_depth.pdf
+    ├── sample_gq.png
+    ├── sample_gq.pdf
+    ├── maf_distribution.png
+    ├── maf_distribution.pdf
+    ├── variant_missingness.png
+    └── variant_missingness.pdf
 ```
 
-### `qc_summary.json`
+The variant-distribution plots use fixed-size streaming histogram bins so large VCFs do not require retaining millions of QC values in memory.
 
-Run-level metrics, including sample and variant counts, retained-variant count, SNP/multiallelic counts, transitions/transversions, overall genotype call rate, mean depth when available, and the QC thresholds used.
+---
 
-### `sample_qc.csv`
+# PCA engine
 
-One row per sample:
+## Statistical approach
+
+EvoFlow's PCA module currently operates on **informative diploid biallelic SNPs**.
+
+For each SNP with alternate-allele frequency `p`, genotype dosage `g` is standardized as:
 
 ```text
-sample
-called_genotypes
-missing_genotypes
-call_rate
-missing_rate
-heterozygosity
-mean_depth
+(g - 2p) / sqrt(2p(1-p))
 ```
 
-### `variant_qc.csv`
+Missing genotypes are mean-imputed to `2p`, which becomes zero after standardization. Monomorphic variants, indels, multiallelic variants, sites without usable diploid GT calls, and other non-informative records are excluded from PCA.
 
-One row per variant:
+Instead of retaining the complete sample × SNP matrix, EvoFlow streams standardized SNP vectors and accumulates the sample Gram matrix:
 
 ```text
-chrom
-pos
-ref
-alt
-is_snp
-is_biallelic
-call_rate
-missing_rate
-alt_allele_frequency
-maf
-mean_depth
-passes_qc
+X Xᵀ
 ```
 
-For multiallelic sites, `maf` is intentionally left blank in the current engine rather than applying an ambiguous biallelic definition.
+The principal components are then recovered through symmetric eigendecomposition. A second streaming pass calculates per-SNP loadings. This keeps PCA memory usage driven primarily by the number of samples rather than the number of SNPs.
 
-### `filtered.vcf`
+## PCA input selection
 
-A VCF containing only records that pass the selected MAF and missingness criteria. The EvoFlow filter thresholds are recorded in the VCF header.
+By default:
+
+```text
+QC filtered.vcf exists  -> use filtered.vcf
+otherwise                -> use configured VCF
+```
+
+Use `--use-raw` to explicitly bypass an existing QC-filtered VCF.
+
+## PCA outputs
+
+```text
+evoflow-results/
+└── pca/
+    ├── pca_summary.json
+    ├── pca_scores.csv
+    ├── pca_variance.csv
+    ├── pca_loadings.csv
+    ├── pca_scree.png
+    ├── pca_scree.pdf
+    ├── pca_pc1_pc2.png
+    └── pca_pc1_pc2.pdf
+```
+
+### `pca_scores.csv`
+
+Contains one row per sample, preserves available metadata columns, and appends PC coordinates.
+
+If the metadata contains a `population` column, the PC1–PC2 plot automatically groups samples by population.
+
+### `pca_variance.csv`
+
+Contains:
+
+- component name;
+- eigenvalue;
+- explained variance;
+- explained-variance ratio; and
+- cumulative explained variance.
+
+### `pca_loadings.csv`
+
+Contains chromosome, position, reference/alternate alleles, and loadings for each reported component.
+
+### `pca_summary.json`
+
+Records the input VCF, sample count, informative SNP count, number of components, explained-variance ratios, and PCA method.
 
 ---
 
@@ -336,14 +388,12 @@ A VCF containing only records that pass the selected MAF and missingness criteri
 
 ### Variant file
 
-The native QC engine currently supports:
+The native parser currently supports:
 
 - uncompressed VCF (`.vcf`)
 - gzip/bgzip-compressed VCF (`.vcf.gz`, `.vcf.bgz`, `.gz`, `.bgz`)
 
-**BCF is not yet parsed natively.** Convert BCF to VCF/VCF.gz before running the current QC engine. Native BCF support can be added later through an appropriate binary variant backend.
-
-The parser uses genotype (`GT`) information when present and depth (`DP`) when available in FORMAT fields.
+**BCF is not yet parsed natively.** Convert BCF to VCF/VCF.gz before using the current native engines.
 
 ### Sample metadata
 
@@ -356,7 +406,7 @@ sample_02,IN,Site_B,39.1600,-86.5200
 sample_03,KY,Site_C,38.0400,-84.5000
 ```
 
-Only `sample` is required today. Columns such as `population`, `site`, `latitude`, `longitude`, and environmental covariates will support later population, spatial, and landscape-genomic modules.
+Only `sample` is mandatory today. Other columns are preserved in PCA score output and will support later population, spatial, and landscape-genomic modules.
 
 ---
 
@@ -364,8 +414,8 @@ Only `sample` is required today. Columns such as `population`, `site`, `latitude
 
 | Module | Intended role | Current state |
 |---|---|---|
-| `qc` | Variant and sample quality control | ✅ Implemented foundation |
-| `pca` | Principal component analysis | 🧭 Planned |
+| `qc` | Variant and sample quality control | ✅ Implemented |
+| `pca` | Principal component analysis | ✅ Implemented foundation |
 | `structure` | Population structure / ancestry inference | 🧭 Planned |
 | `diversity` | Population diversity statistics | 🧭 Planned |
 | `fst` | Population differentiation | 🧭 Planned |
@@ -378,7 +428,7 @@ Only `sample` is required today. Columns such as `population`, `site`, `latitude
 
 ## Architecture
 
-EvoFlow uses a `src`-based Python package layout and separates configuration, input handling, analysis modules, orchestration, and the command-line interface.
+EvoFlow uses a `src`-based Python package layout and separates configuration, input handling, scientific modules, plotting, orchestration, and the CLI.
 
 ```text
 EvoFlow/
@@ -399,10 +449,14 @@ EvoFlow/
 │       │   ├── validation.py
 │       │   └── vcf.py
 │       └── modules/
+│           ├── pca.py
+│           ├── pca_plots.py
 │           ├── qc.py
+│           ├── qc_plots.py
 │           └── registry.py
 ├── tests/
 │   ├── test_config.py
+│   ├── test_pca.py
 │   ├── test_qc.py
 │   ├── test_registry.py
 │   └── test_validation.py
@@ -412,15 +466,7 @@ EvoFlow/
 └── pyproject.toml
 ```
 
-### Architectural layers
-
-- **`evoflow.config`** — project configuration and serialization.
-- **`evoflow.io`** — VCF access and biological metadata validation.
-- **`evoflow.modules`** — analysis implementations and registry.
-- **`evoflow.core`** — reserved for orchestration, execution, provenance, and restartable run management.
-- **`evoflow.cli`** — user-facing commands.
-
-The native QC implementation is intentionally streaming so that basic summaries and filtering do not require retaining an entire VCF in Python memory.
+See [`docs/architecture.md`](docs/architecture.md) for the evolving internal design.
 
 ---
 
@@ -438,7 +484,20 @@ Each environment performs:
 Install  ->  Ruff linting  ->  Pytest
 ```
 
-The tests include VCF parsing, gzip support, expected QC statistics, filtered VCF output, module validation, configuration handling, and strict VCF/metadata sample matching.
+The test suite currently covers:
+
+- VCF parsing;
+- compressed VCF support;
+- strict metadata/VCF sample matching;
+- expected QC statistics;
+- DP and GQ summaries;
+- threshold-filtered VCF output and provenance headers;
+- QC diagnostic PNG/PDF files;
+- PCA informative-SNP selection;
+- PCA explained variance and component structure;
+- metadata propagation into PCA scores;
+- PCA loadings; and
+- PCA figure generation.
 
 The CI badge at the top of this README reflects the current state of `main`.
 
@@ -446,19 +505,21 @@ The CI badge at the top of this README reflects the current state of `main`.
 
 ## Current limitations
 
-EvoFlow is usable for its implemented QC foundation, but it is **not yet a complete end-to-end population-genomics pipeline**.
+EvoFlow is **not yet a complete end-to-end population-genomics pipeline**. Important current limitations include:
 
-Current limitations include:
-
-- no native BCF parser yet;
-- no genotype-quality (`GQ`) filtering yet;
+- no native BCF parser;
+- no LD-pruning module yet;
+- no Hardy-Weinberg filtering yet;
+- no genotype-quality (`GQ`) filtering threshold yet, although GQ summaries are calculated;
 - multiallelic MAF is not currently assigned;
-- QC plots are not yet generated;
-- filtered VCF output is currently written uncompressed;
-- PCA, structure, diversity, FST, spatial, selection, GEA, and report modules remain under development; and
-- provenance manifests and restartable workflow execution are not yet implemented.
+- filtered VCF output is currently uncompressed;
+- PCA currently assumes diploid biallelic genotype dosages;
+- PCA mean-imputes missing genotypes at each SNP;
+- PCA does not yet perform LD pruning automatically, so users should interpret analyses of dense linked SNP datasets accordingly;
+- ancestry/structure, diversity, FST, spatial, selection, GEA, and reporting modules remain under development; and
+- full provenance manifests and restartable workflow execution are not yet implemented.
 
-These limitations are documented deliberately so users can distinguish current functionality from the roadmap.
+These limitations are documented intentionally so current functionality is not confused with the roadmap.
 
 ---
 
@@ -479,28 +540,33 @@ These limitations are documented deliberately so users can distinguish current f
 
 - [x] Stream and summarize VCF content
 - [x] Support VCF and VCF.gz
-- [x] Variant counts
-- [x] Sample counts
+- [x] Variant and sample counts
 - [x] Exact metadata / VCF sample validation
-- [x] Per-sample missingness
-- [x] Per-site missingness
+- [x] Per-sample and per-site missingness
 - [x] Genotype call rate
 - [x] Observed heterozygosity
 - [x] Biallelic allele-frequency / MAF summaries
-- [x] Depth summaries when FORMAT/DP is present
+- [x] Depth summaries from FORMAT/DP
+- [x] Genotype-quality summaries from FORMAT/GQ
 - [x] Transition / transversion summaries
 - [x] Configurable MAF and missingness QC decisions
 - [x] Run-, sample-, and variant-level QC tables
 - [x] Threshold-filtered VCF output
-- [ ] Genotype-quality (`GQ`) summaries and thresholds
-- [ ] Publication-quality QC figures
+- [x] Publication-oriented QC figures in PNG/PDF
+- [ ] GQ-based filtering thresholds
 - [ ] Compressed filtered VCF output
 - [ ] Native BCF support
 
 ### Phase 2 — Population structure and diversity
 
-- [ ] PCA engine
-- [ ] Population-structure workflow
+- [x] Allele-frequency-standardized PCA engine
+- [x] Streaming sample Gram-matrix PCA
+- [x] PCA sample scores and explained variance
+- [x] SNP loadings
+- [x] PCA scree and PC1–PC2 figures
+- [x] Metadata-aware population grouping in PCA plots
+- [ ] LD pruning
+- [ ] Population-structure / ancestry workflow
 - [ ] Diversity statistics
 - [ ] Pairwise and global FST
 - [ ] Standardized population-genetic figures
@@ -540,7 +606,7 @@ EvoFlow is being developed for evolutionary biologists, population geneticists, 
 
 - How are individuals genetically structured across populations or geography?
 - Which populations are most differentiated?
-- How much genomic diversity is present within populations?
+- How much genomic diversity exists within populations?
 - Is genetic differentiation associated with geographic distance?
 - Are there potential barriers or corridors to gene flow?
 - Which genomic regions show unusual differentiation?
