@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 import yaml
@@ -21,10 +22,12 @@ def version() -> None:
 
 @app.command()
 def init(
-    project: str = typer.Option(..., help="Project name."),
-    vcf: Path = typer.Option(..., help="Input VCF/BCF path."),
-    metadata: Path = typer.Option(..., help="Sample metadata CSV path."),
-    output: Path = typer.Option(Path("evoflow.yaml"), help="Configuration file to create."),
+    project: Annotated[str, typer.Option(help="Project name.")],
+    vcf: Annotated[Path, typer.Option(help="Input VCF/BCF path.")],
+    metadata: Annotated[Path, typer.Option(help="Sample metadata CSV path.")],
+    output: Annotated[Path, typer.Option(help="Configuration file to create.")] = Path(
+        "evoflow.yaml"
+    ),
 ) -> None:
     """Create an EvoFlow project configuration."""
     config = EvoFlowConfig(project=project, vcf=vcf, metadata=metadata)
@@ -33,7 +36,7 @@ def init(
 
 
 @app.command()
-def validate(config: Path = typer.Argument(..., exists=True)) -> None:
+def validate(config: Annotated[Path, typer.Argument(exists=True)]) -> None:
     """Validate EvoFlow configuration and input files."""
     cfg = EvoFlowConfig.from_yaml(config)
     validate_modules(cfg.modules)
@@ -43,7 +46,7 @@ def validate(config: Path = typer.Argument(..., exists=True)) -> None:
 
 
 @app.command()
-def plan(config: Path = typer.Argument(..., exists=True)) -> None:
+def plan(config: Annotated[Path, typer.Argument(exists=True)]) -> None:
     """Print the ordered analysis plan without running it."""
     cfg = EvoFlowConfig.from_yaml(config)
     validate_modules(cfg.modules)
