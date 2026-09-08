@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
 
 from evoflow.io.vcf import open_vcf_text, read_vcf_samples
+from evoflow.modules.pca_plots import generate_pca_figures
 
 
 @dataclass(slots=True)
@@ -17,6 +19,7 @@ class PCAResult:
     components: int
     explained_variance_ratio: list[float]
     input_vcf: str
+    method: str = "allele-frequency-standardized streaming Gram-matrix PCA"
 
 
 def _parse_diploid_biallelic_dosage(gt: str) -> float | None:
@@ -136,25 +139,25 @@ def run_pca(
     if variants_used < 2:
         raise ValueError("PCA requires at least two informative biallelic SNPs.")
 
-    eigenvalues, eigenvectors = np.linalg.eigh(gram)
-    order = np.argsort(eigenvalues)[::-1]
-    eigenvalues = np.clip(eigenvalues[order], 0.0, None)
-    eigenvectors = eigenvectors[:, order]
+    all_eigenvalues, all_eigenvectors = np.linalg.eigh(gram)
+    order = np.argsort(all_eigenvalues)[::-1]
+    all_eigenvalues = np.clip(all_eigenvalues[order], 0.0, None)
+    all_eigenvectors = all_eigenvectors[:, order]
 
-    positive = eigenvalues > np.finfo(float).eps
+    positive = all_eigenvalues > np.finfo(float).eps
     positive_count = int(positive.sum())
     if positive_count == 0:
         raise ValueError("PCA could not find any non-zero genomic variance.")
 
     components = min(n_components, positive_count, len(sample_names) - 1, variants_used)
-    eigenvalues = eigenvalues[:components]
-    eigenvectors = eigenvectors[:, :components]
+    eigenvalues = all_eigenvalues[:components]
+    eigenvectors = all_eigenvectors[:, :components]
     singular_values = np.sqrt(eigenvalues)
     scores = eigenvectors * singular_values
 
-    total_variance = float(np.clip(np.linalg.eigvalsh(gram), 0.0, None).sum())
+    total_variance = float(all_eigenvalues.sum())
     explained_ratio = eigenvalues / total_variance if total_variance else np.zeros_like(eigenvalues)
-    explained_variance = eigenvalues / (variants_used - 1)
+    explained_variance = eigenvalues / (len(sample_names) - 1)
     cumulative = np.cumsum(explained_ratio)
 
     pca_dir = Path(output_dir) / "pca"
@@ -198,7 +201,13 @@ def run_pca(
                 }
             )
 
-    loading_fields = ["chrom", "pos", "ref", "alt", *[f"PC{i}" for i in range(1, components + 1)]]
+    loading_fields = [
+        "chrom",
+        "pos",
+        "ref",
+        "alt",
+        *[f"PC{i}" for i in range(1, components + 1)],
+    ]
     with (pca_dir / "pca_loadings.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=loading_fields)
         writer.writeheader()
@@ -221,10 +230,15 @@ def run_pca(
                 row[f"PC{component_index + 1}"] = round(loading, 8)
             writer.writerow(row)
 
-    return PCAResult(
+    result = PCAResult(
         samples=len(sample_names),
         variants_used=variants_used,
         components=components,
         explained_variance_ratio=[round(float(value), 8) for value in explained_ratio],
         input_vcf=str(vcf_path),
     )
+    (pca_dir / "pca_summary.json").write_text(
+        json.dumps(asdict(result), indent=2) + "\n", encoding="utf-8"
+    )
+    generate_pca_figures(pca_dir)
+    return result
