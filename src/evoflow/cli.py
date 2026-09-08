@@ -9,6 +9,7 @@ import yaml
 from evoflow import __version__
 from evoflow.config import EvoFlowConfig
 from evoflow.io.validation import validate_config
+from evoflow.modules.ld import run_ld_prune
 from evoflow.modules.pca import run_pca
 from evoflow.modules.qc import run_qc
 from evoflow.modules.registry import MODULES, validate_modules
@@ -88,6 +89,52 @@ def qc(
     typer.echo(f"✓ Results: {cfg.output_dir / 'qc'}")
 
 
+@app.command(name="ld-prune")
+def ld_prune(
+    config: Annotated[Path, typer.Argument(exists=True)],
+    r2_threshold: Annotated[
+        float,
+        typer.Option("--r2", help="Maximum allowed pairwise genotype-dosage r²."),
+    ] = 0.2,
+    window_bp: Annotated[
+        int,
+        typer.Option(help="Physical sliding-window size in base pairs."),
+    ] = 50_000,
+    min_overlap: Annotated[
+        int,
+        typer.Option(help="Minimum samples called at both SNPs for an r² calculation."),
+    ] = 3,
+    use_raw: Annotated[
+        bool,
+        typer.Option("--use-raw", help="Use the configured VCF instead of QC filtered.vcf."),
+    ] = False,
+) -> None:
+    """Greedily prune linked biallelic SNPs in a physical sliding window."""
+    cfg = EvoFlowConfig.from_yaml(config)
+    for message in validate_config(cfg):
+        typer.echo(f"✓ {message}")
+
+    filtered_vcf = cfg.output_dir / "qc" / "filtered.vcf"
+    input_vcf = cfg.vcf if use_raw or not filtered_vcf.exists() else filtered_vcf
+    if input_vcf == filtered_vcf:
+        typer.echo(f"✓ LD input: QC-filtered variants ({filtered_vcf})")
+    else:
+        typer.echo(f"✓ LD input: configured variant file ({cfg.vcf})")
+
+    result = run_ld_prune(
+        input_vcf,
+        cfg.output_dir,
+        r2_threshold=r2_threshold,
+        window_bp=window_bp,
+        min_overlap=min_overlap,
+    )
+    typer.echo(
+        f"✓ LD pruning complete: {result.retained_snps}/{result.informative_snps} "
+        f"informative SNPs retained"
+    )
+    typer.echo(f"✓ Results: {cfg.output_dir / 'ld'}")
+
+
 @app.command()
 def pca(
     config: Annotated[Path, typer.Argument(exists=True)],
@@ -97,7 +144,10 @@ def pca(
     ] = 10,
     use_raw: Annotated[
         bool,
-        typer.Option("--use-raw", help="Use the configured VCF even if QC filtered.vcf exists."),
+        typer.Option(
+            "--use-raw",
+            help="Use the configured VCF instead of LD-pruned or QC-filtered variants.",
+        ),
     ] = False,
 ) -> None:
     """Run allele-frequency-standardized population-genomic PCA."""
@@ -105,9 +155,20 @@ def pca(
     for message in validate_config(cfg):
         typer.echo(f"✓ {message}")
 
+    ld_vcf = cfg.output_dir / "ld" / "ld_pruned.vcf"
     filtered_vcf = cfg.output_dir / "qc" / "filtered.vcf"
-    input_vcf = cfg.vcf if use_raw or not filtered_vcf.exists() else filtered_vcf
-    if input_vcf == filtered_vcf:
+    if use_raw:
+        input_vcf = cfg.vcf
+    elif ld_vcf.exists():
+        input_vcf = ld_vcf
+    elif filtered_vcf.exists():
+        input_vcf = filtered_vcf
+    else:
+        input_vcf = cfg.vcf
+
+    if input_vcf == ld_vcf:
+        typer.echo(f"✓ PCA input: LD-pruned variants ({ld_vcf})")
+    elif input_vcf == filtered_vcf:
         typer.echo(f"✓ PCA input: QC-filtered variants ({filtered_vcf})")
     else:
         typer.echo(f"✓ PCA input: configured variant file ({cfg.vcf})")
