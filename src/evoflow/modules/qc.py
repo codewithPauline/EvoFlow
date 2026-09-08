@@ -16,6 +16,8 @@ class SampleQC:
     heterozygous_genotypes: int = 0
     depth_sum: float = 0.0
     depth_observations: int = 0
+    gq_sum: float = 0.0
+    gq_observations: int = 0
 
     def to_row(self) -> dict[str, str | int | float]:
         total = self.called_genotypes + self.missing_genotypes
@@ -26,6 +28,7 @@ class SampleQC:
             else 0.0
         )
         mean_depth = self.depth_sum / self.depth_observations if self.depth_observations else 0.0
+        mean_gq = self.gq_sum / self.gq_observations if self.gq_observations else 0.0
         return {
             "sample": self.sample,
             "called_genotypes": self.called_genotypes,
@@ -34,6 +37,7 @@ class SampleQC:
             "missing_rate": round(1.0 - call_rate, 6),
             "heterozygosity": round(heterozygosity, 6),
             "mean_depth": round(mean_depth, 6),
+            "mean_gq": round(mean_gq, 6),
         }
 
 
@@ -53,6 +57,7 @@ class QCSummary:
     missing_genotypes: int
     overall_call_rate: float
     mean_depth: float | None
+    mean_gq: float | None
     min_maf: float
     max_missing: float
 
@@ -113,6 +118,8 @@ def run_qc(
     missing_genotypes = 0
     depth_sum = 0.0
     depth_observations = 0
+    gq_sum = 0.0
+    gq_observations = 0
 
     variant_path = qc_dir / "variant_qc.csv"
     filtered_vcf_path = qc_dir / "filtered.vcf"
@@ -135,6 +142,7 @@ def run_qc(
                 "alt_allele_frequency",
                 "maf",
                 "mean_depth",
+                "mean_gq",
                 "passes_qc",
             ],
         )
@@ -179,12 +187,15 @@ def run_qc(
                 sample_fields = fields[9:] if len(fields) > 9 else []
                 gt_index = format_keys.index("GT") if "GT" in format_keys else None
                 dp_index = format_keys.index("DP") if "DP" in format_keys else None
+                gq_index = format_keys.index("GQ") if "GQ" in format_keys else None
 
                 site_called = 0
                 site_missing = 0
                 allele_counts = [0] * (len(alts) + 1)
                 site_depth_sum = 0.0
                 site_depth_observations = 0
+                site_gq_sum = 0.0
+                site_gq_observations = 0
 
                 for index, sample_value in enumerate(sample_fields):
                     parts = sample_value.split(":")
@@ -219,6 +230,17 @@ def run_qc(
                                 sample_stat.depth_sum += depth
                                 sample_stat.depth_observations += 1
 
+                    if gq_index is not None and gq_index < len(parts):
+                        genotype_quality = _safe_float(parts[gq_index])
+                        if genotype_quality is not None:
+                            site_gq_sum += genotype_quality
+                            site_gq_observations += 1
+                            gq_sum += genotype_quality
+                            gq_observations += 1
+                            if sample_stat is not None:
+                                sample_stat.gq_sum += genotype_quality
+                                sample_stat.gq_observations += 1
+
                 expected_samples = len(sample_names)
                 if expected_samples and len(sample_fields) != expected_samples:
                     raise ValueError(
@@ -248,6 +270,7 @@ def run_qc(
                 site_mean_depth = (
                     site_depth_sum / site_depth_observations if site_depth_observations else None
                 )
+                site_mean_gq = site_gq_sum / site_gq_observations if site_gq_observations else None
                 writer.writerow(
                     {
                         "chrom": chrom,
@@ -265,6 +288,7 @@ def run_qc(
                         "mean_depth": (
                             "" if site_mean_depth is None else round(site_mean_depth, 6)
                         ),
+                        "mean_gq": "" if site_mean_gq is None else round(site_mean_gq, 6),
                         "passes_qc": passes_qc,
                     }
                 )
@@ -279,6 +303,7 @@ def run_qc(
             "missing_rate",
             "heterozygosity",
             "mean_depth",
+            "mean_gq",
         ]
         writer = csv.DictWriter(sample_handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -288,6 +313,7 @@ def run_qc(
     overall_call_rate = called_genotypes / genotype_calls if genotype_calls else 0.0
     ti_tv_ratio = transitions / transversions if transversions else None
     mean_depth = depth_sum / depth_observations if depth_observations else None
+    mean_gq = gq_sum / gq_observations if gq_observations else None
 
     summary = QCSummary(
         samples=len(sample_names),
@@ -304,6 +330,7 @@ def run_qc(
         missing_genotypes=missing_genotypes,
         overall_call_rate=round(overall_call_rate, 6),
         mean_depth=None if mean_depth is None else round(mean_depth, 6),
+        mean_gq=None if mean_gq is None else round(mean_gq, 6),
         min_maf=min_maf,
         max_missing=max_missing,
     )
