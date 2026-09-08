@@ -9,6 +9,7 @@ import yaml
 from evoflow import __version__
 from evoflow.config import EvoFlowConfig
 from evoflow.io.validation import validate_config
+from evoflow.modules.pca import run_pca
 from evoflow.modules.qc import run_qc
 from evoflow.modules.registry import MODULES, validate_modules
 
@@ -85,6 +86,43 @@ def qc(
         f"(call rate {summary.overall_call_rate:.3f})"
     )
     typer.echo(f"✓ Results: {cfg.output_dir / 'qc'}")
+
+
+@app.command()
+def pca(
+    config: Annotated[Path, typer.Argument(exists=True)],
+    n_components: Annotated[
+        int,
+        typer.Option(help="Maximum number of principal components to report."),
+    ] = 10,
+    use_raw: Annotated[
+        bool,
+        typer.Option("--use-raw", help="Use the configured VCF even if QC filtered.vcf exists."),
+    ] = False,
+) -> None:
+    """Run allele-frequency-standardized population-genomic PCA."""
+    cfg = EvoFlowConfig.from_yaml(config)
+    for message in validate_config(cfg):
+        typer.echo(f"✓ {message}")
+
+    filtered_vcf = cfg.output_dir / "qc" / "filtered.vcf"
+    input_vcf = cfg.vcf if use_raw or not filtered_vcf.exists() else filtered_vcf
+    if input_vcf == filtered_vcf:
+        typer.echo(f"✓ PCA input: QC-filtered variants ({filtered_vcf})")
+    else:
+        typer.echo(f"✓ PCA input: configured variant file ({cfg.vcf})")
+
+    result = run_pca(
+        input_vcf,
+        cfg.metadata,
+        cfg.output_dir,
+        n_components=n_components,
+    )
+    typer.echo(
+        f"✓ PCA complete: {result.samples} samples, {result.variants_used} informative SNPs, "
+        f"{result.components} components"
+    )
+    typer.echo(f"✓ Results: {cfg.output_dir / 'pca'}")
 
 
 if __name__ == "__main__":
