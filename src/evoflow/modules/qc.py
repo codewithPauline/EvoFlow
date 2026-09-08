@@ -4,7 +4,6 @@ import csv
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from statistics import mean
 
 from evoflow.io.vcf import open_vcf_text, read_vcf_samples
 
@@ -112,7 +111,8 @@ def run_qc(
     transversions = 0
     called_genotypes = 0
     missing_genotypes = 0
-    depth_values: list[float] = []
+    depth_sum = 0.0
+    depth_observations = 0
 
     variant_path = qc_dir / "variant_qc.csv"
     with variant_path.open("w", newline="", encoding="utf-8") as variant_handle:
@@ -170,7 +170,8 @@ def run_qc(
                 site_called = 0
                 site_missing = 0
                 allele_counts = [0] * (len(alts) + 1)
-                site_depths: list[float] = []
+                site_depth_sum = 0.0
+                site_depth_observations = 0
 
                 for index, sample_value in enumerate(sample_fields):
                     parts = sample_value.split(":")
@@ -197,8 +198,10 @@ def run_qc(
                     if dp_index is not None and dp_index < len(parts):
                         depth = _safe_float(parts[dp_index])
                         if depth is not None:
-                            site_depths.append(depth)
-                            depth_values.append(depth)
+                            site_depth_sum += depth
+                            site_depth_observations += 1
+                            depth_sum += depth
+                            depth_observations += 1
                             if sample_stat is not None:
                                 sample_stat.depth_sum += depth
                                 sample_stat.depth_observations += 1
@@ -228,6 +231,9 @@ def run_qc(
                 if passes_qc:
                     retained_variants += 1
 
+                site_mean_depth = (
+                    site_depth_sum / site_depth_observations if site_depth_observations else None
+                )
                 writer.writerow(
                     {
                         "chrom": chrom,
@@ -242,7 +248,9 @@ def run_qc(
                             "" if alt_frequency is None else round(alt_frequency, 6)
                         ),
                         "maf": "" if maf is None else round(maf, 6),
-                        "mean_depth": "" if not site_depths else round(mean(site_depths), 6),
+                        "mean_depth": (
+                            "" if site_mean_depth is None else round(site_mean_depth, 6)
+                        ),
                         "passes_qc": passes_qc,
                     }
                 )
@@ -265,6 +273,7 @@ def run_qc(
     genotype_calls = called_genotypes + missing_genotypes
     overall_call_rate = called_genotypes / genotype_calls if genotype_calls else 0.0
     ti_tv_ratio = transitions / transversions if transversions else None
+    mean_depth = depth_sum / depth_observations if depth_observations else None
 
     summary = QCSummary(
         samples=len(sample_names),
@@ -280,7 +289,7 @@ def run_qc(
         called_genotypes=called_genotypes,
         missing_genotypes=missing_genotypes,
         overall_call_rate=round(overall_call_rate, 6),
-        mean_depth=None if not depth_values else round(mean(depth_values), 6),
+        mean_depth=None if mean_depth is None else round(mean_depth, 6),
         min_maf=min_maf,
         max_missing=max_missing,
     )
