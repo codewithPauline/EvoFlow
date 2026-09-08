@@ -36,7 +36,7 @@ def _allele_counts(
     called = [dosages[index] for index in indices if dosages[index] is not None]
     if not called:
         return None
-    alt = int(round(sum(called)))
+    alt = round(sum(called))
     total = 2 * len(called)
     ref = total - alt
     return ref, alt
