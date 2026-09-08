@@ -89,7 +89,7 @@ def run_qc(
     min_maf: float = 0.0,
     max_missing: float = 1.0,
 ) -> QCSummary:
-    """Stream a VCF and write variant-, sample-, and run-level QC summaries."""
+    """Stream a VCF and write variant-, sample-, and run-level QC outputs."""
     if not 0.0 <= min_maf <= 0.5:
         raise ValueError("min_maf must be between 0.0 and 0.5.")
     if not 0.0 <= max_missing <= 1.0:
@@ -115,7 +115,12 @@ def run_qc(
     depth_observations = 0
 
     variant_path = qc_dir / "variant_qc.csv"
-    with variant_path.open("w", newline="", encoding="utf-8") as variant_handle:
+    filtered_vcf_path = qc_dir / "filtered.vcf"
+
+    with (
+        variant_path.open("w", newline="", encoding="utf-8") as variant_handle,
+        filtered_vcf_path.open("w", encoding="utf-8") as filtered_handle,
+    ):
         writer = csv.DictWriter(
             variant_handle,
             fieldnames=[
@@ -137,6 +142,14 @@ def run_qc(
 
         with open_vcf_text(vcf_path) as handle:
             for line in handle:
+                if line.startswith("##"):
+                    filtered_handle.write(line)
+                    continue
+                if line.startswith("#CHROM"):
+                    filtered_handle.write(f"##evoflow_qc_min_maf={min_maf}\n")
+                    filtered_handle.write(f"##evoflow_qc_max_missing={max_missing}\n")
+                    filtered_handle.write(line)
+                    continue
                 if not line or line.startswith("#"):
                     continue
 
@@ -230,6 +243,7 @@ def run_qc(
                 passes_qc = passes_missing and passes_maf
                 if passes_qc:
                     retained_variants += 1
+                    filtered_handle.write(line)
 
                 site_mean_depth = (
                     site_depth_sum / site_depth_observations if site_depth_observations else None
