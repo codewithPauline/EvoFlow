@@ -16,7 +16,7 @@ class EvoFlowConfig:
     modules: list[str] = field(default_factory=lambda: ["qc"])
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "EvoFlowConfig":
+    def from_yaml(cls, path: str | Path) -> EvoFlowConfig:
         config_path = Path(path)
         data: dict[str, Any] = yaml.safe_load(config_path.read_text()) or {}
         required = {"project", "vcf", "metadata"}
