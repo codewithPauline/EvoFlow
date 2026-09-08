@@ -91,7 +91,8 @@ EvoFlow is in **active early development**. The software foundation is installab
 | Analysis registry | Defines supported EvoFlow modules | ✅ Available |
 | Native VCF QC engine | Streams VCF/VCF.gz and computes genomic QC metrics | ✅ Available |
 | QC tables | Run-, sample-, and variant-level CSV/JSON summaries | ✅ Available |
-| MAF / missingness thresholds | Configurable per-variant QC pass flags | ✅ Available |
+| MAF / missingness thresholds | Configurable per-variant QC decisions | ✅ Available |
+| Filtered VCF | Writes variants that pass configured QC thresholds | ✅ Available |
 | Continuous integration | Install, lint, and test on Python 3.10–3.12 | ✅ Passing |
 | QC figures | Publication-quality diagnostic plots | 🚧 In development |
 | PCA | Population-genomic dimensionality reduction | 🧭 Planned |
@@ -170,15 +171,24 @@ It currently calculates:
 - biallelic minor-allele frequency; and
 - per-site mean depth when `DP` is available.
 
-### 4. Configurable QC thresholds
+### 4. Configurable QC thresholds and filtered VCF output
 
-The QC command can flag variants using minor-allele-frequency and missingness thresholds:
+The QC command can filter variants using minor-allele-frequency and missingness thresholds:
 
 ```bash
 evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
 ```
 
-These thresholds currently populate a `passes_qc` field in the variant table. EvoFlow does **not yet write a filtered VCF**; that will be added as the filtering layer matures.
+Each variant receives a `passes_qc` decision in `variant_qc.csv`. Variants that pass are also written to `filtered.vcf`.
+
+The filtered VCF preserves the original VCF metadata/header and records the EvoFlow thresholds in additional header lines:
+
+```text
+##evoflow_qc_min_maf=0.05
+##evoflow_qc_max_missing=0.2
+```
+
+For multiallelic sites, the current engine does not assign a biallelic-style MAF; those sites are therefore evaluated by missingness but not by the MAF threshold.
 
 ---
 
@@ -256,7 +266,7 @@ evoflow plan evoflow.yaml
 evoflow qc evoflow.yaml
 ```
 
-Or apply QC pass thresholds:
+Or apply explicit QC thresholds:
 
 ```bash
 evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
@@ -266,31 +276,24 @@ evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
 
 ## QC output
 
-The current QC command writes results to:
+The QC command writes:
 
 ```text
 evoflow-results/
 └── qc/
     ├── qc_summary.json
     ├── sample_qc.csv
-    └── variant_qc.csv
+    ├── variant_qc.csv
+    └── filtered.vcf
 ```
 
 ### `qc_summary.json`
 
-Run-level metrics, including:
-
-- sample and variant counts;
-- retained-variant count under the requested QC thresholds;
-- SNP and multiallelic counts;
-- transitions / transversions;
-- overall genotype call rate;
-- global mean depth when available; and
-- the thresholds used for the run.
+Run-level metrics, including sample and variant counts, retained-variant count, SNP/multiallelic counts, transitions/transversions, overall genotype call rate, mean depth when available, and the QC thresholds used.
 
 ### `sample_qc.csv`
 
-One row per sample with:
+One row per sample:
 
 ```text
 sample
@@ -304,7 +307,7 @@ mean_depth
 
 ### `variant_qc.csv`
 
-One row per variant with:
+One row per variant:
 
 ```text
 chrom
@@ -322,6 +325,10 @@ passes_qc
 ```
 
 For multiallelic sites, `maf` is intentionally left blank in the current engine rather than applying an ambiguous biallelic definition.
+
+### `filtered.vcf`
+
+A VCF containing only records that pass the selected MAF and missingness criteria. The EvoFlow filter thresholds are recorded in the VCF header.
 
 ---
 
@@ -413,7 +420,7 @@ EvoFlow/
 - **`evoflow.core`** — reserved for orchestration, execution, provenance, and restartable run management.
 - **`evoflow.cli`** — user-facing commands.
 
-The native QC implementation is intentionally streaming so that basic summaries do not require retaining an entire VCF in Python memory.
+The native QC implementation is intentionally streaming so that basic summaries and filtering do not require retaining an entire VCF in Python memory.
 
 ---
 
@@ -431,7 +438,7 @@ Each environment performs:
 Install  ->  Ruff linting  ->  Pytest
 ```
 
-The tests include VCF parsing, gzip support, expected QC statistics, module validation, configuration handling, and strict VCF/metadata sample matching.
+The tests include VCF parsing, gzip support, expected QC statistics, filtered VCF output, module validation, configuration handling, and strict VCF/metadata sample matching.
 
 The CI badge at the top of this README reflects the current state of `main`.
 
@@ -444,10 +451,10 @@ EvoFlow is usable for its implemented QC foundation, but it is **not yet a compl
 Current limitations include:
 
 - no native BCF parser yet;
-- no filtered VCF output yet;
 - no genotype-quality (`GQ`) filtering yet;
 - multiallelic MAF is not currently assigned;
 - QC plots are not yet generated;
+- filtered VCF output is currently written uncompressed;
 - PCA, structure, diversity, FST, spatial, selection, GEA, and report modules remain under development; and
 - provenance manifests and restartable workflow execution are not yet implemented.
 
@@ -482,11 +489,12 @@ These limitations are documented deliberately so users can distinguish current f
 - [x] Biallelic allele-frequency / MAF summaries
 - [x] Depth summaries when FORMAT/DP is present
 - [x] Transition / transversion summaries
-- [x] Configurable MAF and missingness QC pass flags
+- [x] Configurable MAF and missingness QC decisions
 - [x] Run-, sample-, and variant-level QC tables
+- [x] Threshold-filtered VCF output
 - [ ] Genotype-quality (`GQ`) summaries and thresholds
-- [ ] Filtered VCF output
 - [ ] Publication-quality QC figures
+- [ ] Compressed filtered VCF output
 - [ ] Native BCF support
 
 ### Phase 2 — Population structure and diversity
