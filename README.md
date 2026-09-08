@@ -4,6 +4,8 @@
 
 > **From variants to evolutionary insight.**
 
+**Author:** Pauline Owusu-Ansah ([@codewithPauline](https://github.com/codewithPauline))
+
 EvoFlow is an open-source workflow platform for reproducible population and landscape genomics. It is designed to take researchers from variant data and sample metadata to quality control, population structure, differentiation, diversity, spatial analyses, selection scans, and publication-ready outputs through one consistent interface.
 
 ## Why EvoFlow?
@@ -123,6 +125,11 @@ Optional columns such as `latitude`, `longitude`, `site`, and other biological c
 ## Intended audience
 
 EvoFlow is being developed for evolutionary biologists, population geneticists, conservation genomicists, and bioinformatics researchers who want a reproducible path from genomic variants to evolutionary interpretation.
+
+## Author
+
+**Pauline Owusu-Ansah** — creator and lead developer of EvoFlow.  
+GitHub: [@codewithPauline](https://github.com/codewithPauline)
 
 ## License
 
