@@ -7,98 +7,93 @@
 
 > **From variants to evolutionary insight.**
 
-**EvoFlow** is an open-source, species-agnostic workflow platform for reproducible population and landscape genomics. It is being designed to connect variant data, biological metadata, spatial information, population-genetic analyses, and publication-ready reporting through one transparent and consistent interface.
+**EvoFlow** is an open-source, species-agnostic workflow platform for reproducible population and landscape genomics. It is being developed to connect genomic variants, sample metadata, population-genetic analyses, spatial information, and scientific reporting through one transparent command-line workflow.
 
 **Author and lead developer:** [Pauline Owusu-Ansah](https://github.com/codewithPauline) (`@codewithPauline`)
 
 ---
 
-## Overview
+## Why EvoFlow?
 
-Population-genomic projects rarely consist of a single analysis. A typical study may require variant filtering, sample quality control, PCA, ancestry inference, diversity statistics, FST, spatial analyses, selection scans, genotype-environment association, plotting, and finally the assembly of all parameters and results into a reproducible report.
+Population-genomic studies usually require many independent steps: input validation, variant filtering, sample quality control, PCA, ancestry inference, diversity statistics, FST, spatial analyses, selection scans, genotype-environment association, plotting, and reporting.
 
-In practice, those steps are often distributed across different command-line programs, R scripts, Python notebooks, file formats, environments, and plotting workflows. That fragmentation can make analyses difficult to reproduce, audit, extend, or transfer to another organism.
+Those steps are often spread across different command-line tools, R scripts, Python notebooks, file formats, and software environments. That fragmentation makes analyses harder to reproduce, audit, extend, and transfer between organisms or projects.
 
-**EvoFlow is being built to solve that workflow problem.**
+**EvoFlow is being built as a reproducible orchestration layer for that workflow.**
 
-Rather than replacing established population-genomic methods, EvoFlow is intended to act as a transparent orchestration layer that:
+The project is designed around five principles:
 
-- validates genomic and metadata inputs before analysis;
-- organizes analyses into explicit modules;
-- records the configuration used for each project;
-- provides one command-line interface for the workflow;
-- keeps underlying methods and parameters visible to the researcher;
-- standardizes tables, figures, and output organization; and
-- ultimately produces a reproducible analysis report linking variants to evolutionary interpretation.
+1. **Reproducibility first** — inputs, configuration, parameters, software versions, and outputs should remain traceable.
+2. **Species agnostic** — development examples may use salamander data, but the software is intended for any organism.
+3. **Modular analyses** — researchers should be able to run only the analyses they need.
+4. **Transparent methods** — EvoFlow should expose methods and parameters rather than hide them behind an opaque interface.
+5. **Scientific outputs** — the end product should be interpretable tables, figures, provenance, and reports, not merely successful commands.
 
 ---
 
 ## Conceptual workflow
 
 ```text
-            Variant data
-             VCF / BCF
-                 |
-                 v
-       +--------------------+
-       |  Input validation  | <---- sample metadata
-       +--------------------+ <---- coordinates / environment
-                 |
-                 v
-       +--------------------+
-       | Variant & sample QC|
-       +--------------------+
-                 |
-       +---------+----------+----------------+
-       |                    |                |
-       v                    v                v
-      PCA            Population          Diversity
-                      structure
-       |                    |                |
-       +----------+---------+----------------+
-                  |
-                  v
-          Population differentiation
-                  FST
-                  |
-                  v
-        Spatial population genomics
-                  |
-         +--------+--------+
-         |                 |
-         v                 v
-   Selection scans       GEA
-                         genotype-
-                         environment
-                         association
-         |                 |
-         +--------+--------+
-                  |
-                  v
-       Figures + tables + provenance
-                  |
-                  v
-        Reproducible scientific report
+        VCF / VCF.gz + sample metadata
+                    |
+                    v
+          +------------------+
+          | Input validation |
+          +------------------+
+                    |
+                    v
+          +------------------+
+          | Variant/sample QC|
+          +------------------+
+                    |
+       +------------+-------------+
+       |            |             |
+       v            v             v
+      PCA      Population      Diversity
+               structure
+       |            |             |
+       +------------+-------------+
+                    |
+                    v
+            Differentiation / FST
+                    |
+                    v
+            Spatial population genomics
+                    |
+          +---------+----------+
+          |                    |
+          v                    v
+   Selection scans            GEA
+          |                    |
+          +---------+----------+
+                    |
+                    v
+        Figures + tables + provenance
+                    |
+                    v
+          Reproducible scientific report
 ```
+
+The full workflow is the long-term target. The repository clearly separates **implemented** functionality from **planned** modules.
 
 ---
 
 ## Development status
 
-EvoFlow is in **active early development**. The software foundation is working, tested, and installable, while the biological analysis engines are being implemented incrementally.
-
-The distinction below is intentional: the README should describe what EvoFlow can do **today** without presenting planned modules as completed software.
+EvoFlow is in **active early development**. The software foundation is installable and tested, and the first biological analysis engine — native VCF quality control — is now implemented.
 
 | Component | Purpose | Status |
 |---|---|---|
 | Python package | Installable `evoflow` package | ✅ Available |
 | Command-line interface | User-facing EvoFlow commands | ✅ Available |
 | YAML configuration | Reproducible project configuration | ✅ Available |
-| Variant-file path validation | Confirms configured VCF/BCF input exists | ✅ Available |
-| Metadata validation | Confirms metadata exists, contains a `sample` column, and contains samples | ✅ Available |
-| Analysis registry | Defines supported EvoFlow analysis modules | ✅ Available |
-| Continuous integration | Install, lint, and test across Python 3.10, 3.11, and 3.12 | ✅ Passing |
-| Variant/sample QC engine | Genomic QC metrics, filtering, summaries, and plots | 🚧 Next milestone |
+| VCF / metadata validation | Confirms files exist and sample IDs match exactly | ✅ Available |
+| Analysis registry | Defines supported EvoFlow modules | ✅ Available |
+| Native VCF QC engine | Streams VCF/VCF.gz and computes genomic QC metrics | ✅ Available |
+| QC tables | Run-, sample-, and variant-level CSV/JSON summaries | ✅ Available |
+| MAF / missingness thresholds | Configurable per-variant QC pass flags | ✅ Available |
+| Continuous integration | Install, lint, and test on Python 3.10–3.12 | ✅ Passing |
+| QC figures | Publication-quality diagnostic plots | 🚧 In development |
 | PCA | Population-genomic dimensionality reduction | 🧭 Planned |
 | Population structure | Ancestry / clustering workflow | 🧭 Planned |
 | Diversity statistics | Population diversity summaries | 🧭 Planned |
@@ -111,97 +106,85 @@ The distinction below is intentional: the README should describe what EvoFlow ca
 
 ---
 
-## Analysis modules
+## What works today
 
-EvoFlow currently defines the following modular analysis vocabulary:
+### 1. Project configuration
 
-| Module | Intended role |
-|---|---|
-| `qc` | Variant and sample quality control |
-| `pca` | Principal component analysis |
-| `structure` | Population structure and ancestry inference |
-| `diversity` | Population diversity statistics |
-| `fst` | Population differentiation using FST |
-| `spatial` | Spatial population-genomic analyses |
-| `selection` | Selection and outlier scans |
-| `gea` | Genotype-environment association |
-| `report` | Reproducible analysis reporting |
+EvoFlow projects are described with YAML:
 
-Modules are being implemented independently so that users will eventually be able to run only the analyses required for a particular study while retaining one shared project configuration and output structure.
-
----
-
-## Design principles
-
-EvoFlow is being developed around several principles that are especially important in evolutionary genomics.
-
-### 1. Reproducibility first
-
-A computational result is only useful if another researcher can understand how it was produced. EvoFlow is being designed so that project inputs, configuration, module settings, software versions, and analysis provenance can be associated with each run.
-
-### 2. Species agnostic
-
-EvoFlow is not an amphibian-specific workflow. Salamander datasets may be used as development examples because they provide realistic evolutionary-genomic use cases, but the software architecture is intended for genomic datasets from any organism.
-
-### 3. Modular rather than monolithic
-
-Researchers should not have to execute an entire pipeline simply to obtain one analysis. QC, PCA, structure, diversity, FST, spatial analyses, selection, GEA, and reporting are treated as separate modules with explicit roles.
-
-### 4. Transparent methods
-
-EvoFlow is intended to orchestrate established methods rather than hide them behind an opaque interface. Parameters, dependencies, inputs, and outputs should remain inspectable.
-
-### 5. Scientific outputs, not just software logs
-
-The long-term goal is not merely successful command execution. EvoFlow should generate interpretable tables, publication-quality figures, reproducible methods information, and organized outputs that support biological inference.
-
----
-
-## Architecture
-
-The project uses a `src`-based Python package layout and separates configuration, input handling, analysis modules, orchestration, and the command-line interface.
-
-```text
-EvoFlow/
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── docs/
-│   └── architecture.md
-├── examples/
-│   └── evoflow.example.yaml
-├── src/
-│   └── evoflow/
-│       ├── __init__.py
-│       ├── cli.py
-│       ├── config.py
-│       ├── core/
-│       ├── io/
-│       │   └── validation.py
-│       └── modules/
-│           └── registry.py
-├── tests/
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
-└── pyproject.toml
+```yaml
+project: salamander-demo
+vcf: data/variants.vcf.gz
+metadata: data/samples.csv
+output_dir: evoflow-results
+modules:
+  - qc
+  - pca
+  - structure
+  - diversity
+  - fst
+  - spatial
+  - selection
+  - gea
+  - report
 ```
 
-### Architectural layers
+At this stage, `qc` is executable. The remaining module names define the planned workflow vocabulary and are being implemented incrementally.
 
-- **`evoflow.config`** — project configuration and serialization.
-- **`evoflow.io`** — validation of genomic files and associated biological metadata.
-- **`evoflow.modules`** — analysis-module definitions and future implementations.
-- **`evoflow.core`** — reserved for orchestration, execution, provenance, and run management as those capabilities are implemented.
-- **`evoflow.cli`** — the user-facing command-line interface.
+### 2. Strict input validation
 
-This separation is intended to keep the codebase maintainable as the number of genomic analyses grows.
+Before QC runs, EvoFlow checks that:
+
+- the configured VCF exists;
+- the metadata CSV exists;
+- the metadata contains a `sample` column;
+- metadata sample IDs are non-empty and unique;
+- VCF sample IDs are unique; and
+- the VCF and metadata contain **exactly the same sample IDs**.
+
+That last check is intentionally strict. Silent sample mismatches can invalidate downstream population-genomic analyses, so EvoFlow fails early instead of guessing.
+
+### 3. Native streaming VCF QC
+
+The first QC engine reads `.vcf` and `.vcf.gz` files without loading the entire variant dataset into memory.
+
+It currently calculates:
+
+- number of samples;
+- number of variants;
+- SNP count;
+- biallelic SNP count;
+- multiallelic variant count;
+- transition count;
+- transversion count;
+- Ti/Tv ratio when defined;
+- total genotype calls;
+- called and missing genotypes;
+- overall genotype call rate;
+- per-sample call rate;
+- per-sample missingness;
+- per-sample observed heterozygosity;
+- per-sample mean depth when `DP` is available;
+- per-site call rate and missingness;
+- alternate-allele frequency;
+- biallelic minor-allele frequency; and
+- per-site mean depth when `DP` is available.
+
+### 4. Configurable QC thresholds
+
+The QC command can flag variants using minor-allele-frequency and missingness thresholds:
+
+```bash
+evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
+```
+
+These thresholds currently populate a `passes_qc` field in the variant table. EvoFlow does **not yet write a filtered VCF**; that will be added as the filtering layer matures.
 
 ---
 
 ## Installation
 
-EvoFlow is currently intended for **development installation from source**.
+EvoFlow is currently installed from source.
 
 ### Requirements
 
@@ -242,76 +225,122 @@ evoflow version
 
 ## Quick start
 
-### 1. Create an EvoFlow project configuration
+### 1. Create a project configuration
 
 ```bash
 evoflow init \
   --project salamander-demo \
-  --vcf data/variants.vcf \
+  --vcf data/variants.vcf.gz \
   --metadata data/samples.csv
 ```
 
-This creates an `evoflow.yaml` configuration file.
+This creates `evoflow.yaml`.
 
-### 2. Validate the project inputs
+### 2. Validate the inputs
 
 ```bash
 evoflow validate evoflow.yaml
 ```
 
-The current validator checks that:
+Successful validation confirms that the genomic and metadata sample identities match.
 
-- the configured variant file exists;
-- the configured metadata file exists;
-- the metadata contains a `sample` column; and
-- the metadata contains at least one sample.
-
-### 3. Inspect the configured analysis plan
+### 3. Inspect the analysis plan
 
 ```bash
 evoflow plan evoflow.yaml
 ```
 
-The `plan` command reads the requested module list and prints the ordered analyses without executing them.
+### 4. Run VCF quality control
+
+```bash
+evoflow qc evoflow.yaml
+```
+
+Or apply QC pass thresholds:
+
+```bash
+evoflow qc evoflow.yaml --min-maf 0.05 --max-missing 0.20
+```
 
 ---
 
-## Project configuration
+## QC output
 
-An EvoFlow project is described with YAML.
+The current QC command writes results to:
 
-Example:
-
-```yaml
-project: salamander-demo
-vcf: data/variants.vcf
-metadata: data/samples.csv
-output_dir: evoflow-results
-modules:
-  - qc
-  - pca
-  - structure
-  - diversity
-  - fst
-  - spatial
-  - selection
-  - gea
-  - report
+```text
+evoflow-results/
+└── qc/
+    ├── qc_summary.json
+    ├── sample_qc.csv
+    └── variant_qc.csv
 ```
 
-At this stage, the module list defines the intended workflow plan. Analysis execution will be connected to the registry as individual engines are implemented.
+### `qc_summary.json`
+
+Run-level metrics, including:
+
+- sample and variant counts;
+- retained-variant count under the requested QC thresholds;
+- SNP and multiallelic counts;
+- transitions / transversions;
+- overall genotype call rate;
+- global mean depth when available; and
+- the thresholds used for the run.
+
+### `sample_qc.csv`
+
+One row per sample with:
+
+```text
+sample
+called_genotypes
+missing_genotypes
+call_rate
+missing_rate
+heterozygosity
+mean_depth
+```
+
+### `variant_qc.csv`
+
+One row per variant with:
+
+```text
+chrom
+pos
+ref
+alt
+is_snp
+is_biallelic
+call_rate
+missing_rate
+alt_allele_frequency
+maf
+mean_depth
+passes_qc
+```
+
+For multiallelic sites, `maf` is intentionally left blank in the current engine rather than applying an ambiguous biallelic definition.
 
 ---
 
 ## Input data
 
-### Variant data
+### Variant file
 
-EvoFlow is designed around standard population-genomic variant files such as VCF/BCF. Current validation confirms that the configured file path exists; deeper VCF inspection is part of the QC milestone.
+The native QC engine currently supports:
+
+- uncompressed VCF (`.vcf`)
+- gzip/bgzip-compressed VCF (`.vcf.gz`, `.vcf.bgz`, `.gz`, `.bgz`)
+
+**BCF is not yet parsed natively.** Convert BCF to VCF/VCF.gz before running the current QC engine. Native BCF support can be added later through an appropriate binary variant backend.
+
+The parser uses genotype (`GT`) information when present and depth (`DP`) when available in FORMAT fields.
 
 ### Sample metadata
 
-The current minimum metadata requirement is a CSV file containing a `sample` column.
+The minimum metadata file is CSV with a `sample` column:
 
 ```csv
 sample,population,site,latitude,longitude
@@ -320,61 +349,77 @@ sample_02,IN,Site_B,39.1600,-86.5200
 sample_03,KY,Site_C,38.0400,-84.5000
 ```
 
-Only `sample` is currently enforced by the validator. Columns such as `population`, `site`, `latitude`, `longitude`, and environmental covariates are intended to support later population, spatial, and landscape-genomic modules.
-
-A central design requirement is that sample identifiers in metadata remain traceable to the individuals represented in the genomic dataset.
+Only `sample` is required today. Columns such as `population`, `site`, `latitude`, `longitude`, and environmental covariates will support later population, spatial, and landscape-genomic modules.
 
 ---
 
-## Planned results structure
+## Analysis modules
 
-As the execution engine is implemented, EvoFlow is intended to organize results consistently rather than scattering output across tool-specific folders.
+| Module | Intended role | Current state |
+|---|---|---|
+| `qc` | Variant and sample quality control | ✅ Implemented foundation |
+| `pca` | Principal component analysis | 🧭 Planned |
+| `structure` | Population structure / ancestry inference | 🧭 Planned |
+| `diversity` | Population diversity statistics | 🧭 Planned |
+| `fst` | Population differentiation | 🧭 Planned |
+| `spatial` | Spatial population-genomic analyses | 🧭 Planned |
+| `selection` | Selection and outlier scans | 🧭 Planned |
+| `gea` | Genotype-environment association | 🧭 Planned |
+| `report` | Reproducible analysis reporting | 🧭 Planned |
 
-A target structure is:
+---
+
+## Architecture
+
+EvoFlow uses a `src`-based Python package layout and separates configuration, input handling, analysis modules, orchestration, and the command-line interface.
 
 ```text
-evoflow-results/
-├── 00_provenance/
-├── 01_qc/
-├── 02_pca/
-├── 03_structure/
-├── 04_diversity/
-├── 05_fst/
-├── 06_spatial/
-├── 07_selection/
-├── 08_gea/
-└── report/
+EvoFlow/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── docs/
+│   └── architecture.md
+├── examples/
+│   └── evoflow.example.yaml
+├── src/
+│   └── evoflow/
+│       ├── __init__.py
+│       ├── cli.py
+│       ├── config.py
+│       ├── core/
+│       ├── io/
+│       │   ├── validation.py
+│       │   └── vcf.py
+│       └── modules/
+│           ├── qc.py
+│           └── registry.py
+├── tests/
+│   ├── test_config.py
+│   ├── test_qc.py
+│   ├── test_registry.py
+│   └── test_validation.py
+├── CONTRIBUTING.md
+├── LICENSE
+├── README.md
+└── pyproject.toml
 ```
 
-This is a design target, not yet a promise of current generated output.
+### Architectural layers
 
----
+- **`evoflow.config`** — project configuration and serialization.
+- **`evoflow.io`** — VCF access and biological metadata validation.
+- **`evoflow.modules`** — analysis implementations and registry.
+- **`evoflow.core`** — reserved for orchestration, execution, provenance, and restartable run management.
+- **`evoflow.cli`** — user-facing commands.
 
-## Reproducibility and provenance
-
-A major objective of EvoFlow is to make a genomic workflow auditable from input to interpretation.
-
-The execution layer is being designed to eventually record information such as:
-
-- input file paths and checksums;
-- project configuration;
-- selected modules;
-- analysis parameters;
-- EvoFlow version;
-- external-tool versions;
-- command history;
-- generated files; and
-- run timestamps.
-
-These provenance features will be introduced alongside the workflow execution engine.
+The native QC implementation is intentionally streaming so that basic summaries do not require retaining an entire VCF in Python memory.
 
 ---
 
 ## Testing and continuous integration
 
-Every change pushed to the repository is checked with GitHub Actions.
-
-The current CI matrix tests EvoFlow on:
+Every push to `main` is checked with GitHub Actions on:
 
 - Python 3.10
 - Python 3.11
@@ -386,7 +431,27 @@ Each environment performs:
 Install  ->  Ruff linting  ->  Pytest
 ```
 
-The CI badge at the top of this README reflects the current state of the `main` branch.
+The tests include VCF parsing, gzip support, expected QC statistics, module validation, configuration handling, and strict VCF/metadata sample matching.
+
+The CI badge at the top of this README reflects the current state of `main`.
+
+---
+
+## Current limitations
+
+EvoFlow is usable for its implemented QC foundation, but it is **not yet a complete end-to-end population-genomics pipeline**.
+
+Current limitations include:
+
+- no native BCF parser yet;
+- no filtered VCF output yet;
+- no genotype-quality (`GQ`) filtering yet;
+- multiallelic MAF is not currently assigned;
+- QC plots are not yet generated;
+- PCA, structure, diversity, FST, spatial, selection, GEA, and report modules remain under development; and
+- provenance manifests and restartable workflow execution are not yet implemented.
+
+These limitations are documented deliberately so users can distinguish current functionality from the roadmap.
 
 ---
 
@@ -398,24 +463,31 @@ The CI badge at the top of this README reflects the current state of the `main` 
 - [x] Python package structure
 - [x] Command-line interface
 - [x] YAML project configuration
-- [x] Input-path and metadata validation
-- [x] Modular analysis registry
+- [x] Analysis-module registry
 - [x] Automated tests
 - [x] Continuous integration
 - [x] Project documentation foundation
 
 ### Phase 1 — Genomic quality control
 
-- [ ] Read and summarize VCF content
-- [ ] Variant counts
-- [ ] Sample counts
-- [ ] Per-sample missingness
-- [ ] Per-site missingness
-- [ ] Minor-allele-frequency summaries
-- [ ] Depth / genotype-quality summaries where available
-- [ ] Configurable QC filtering
-- [ ] QC tables
+- [x] Stream and summarize VCF content
+- [x] Support VCF and VCF.gz
+- [x] Variant counts
+- [x] Sample counts
+- [x] Exact metadata / VCF sample validation
+- [x] Per-sample missingness
+- [x] Per-site missingness
+- [x] Genotype call rate
+- [x] Observed heterozygosity
+- [x] Biallelic allele-frequency / MAF summaries
+- [x] Depth summaries when FORMAT/DP is present
+- [x] Transition / transversion summaries
+- [x] Configurable MAF and missingness QC pass flags
+- [x] Run-, sample-, and variant-level QC tables
+- [ ] Genotype-quality (`GQ`) summaries and thresholds
+- [ ] Filtered VCF output
 - [ ] Publication-quality QC figures
+- [ ] Native BCF support
 
 ### Phase 2 — Population structure and diversity
 
@@ -447,30 +519,16 @@ The CI badge at the top of this README reflects the current state of the `main` 
 - [ ] Automated HTML scientific report
 - [ ] Integrated methods summary
 - [ ] Example biological dataset
-- [ ] User documentation
+- [ ] Extended user documentation
 - [ ] Containerized release
 - [ ] Versioned software release
 - [ ] DOI / archival release workflow
 
 ---
 
-## Intended users
-
-EvoFlow is being developed for:
-
-- evolutionary biologists;
-- population geneticists;
-- conservation genomicists;
-- landscape genomicists;
-- molecular ecologists;
-- bioinformaticians; and
-- researchers who need a reproducible path from variant data to population-level evolutionary inference.
-
----
-
 ## Scientific scope
 
-EvoFlow is intended for research workflows involving questions such as:
+EvoFlow is being developed for evolutionary biologists, population geneticists, conservation genomicists, landscape genomicists, molecular ecologists, and bioinformaticians working with questions such as:
 
 - How are individuals genetically structured across populations or geography?
 - Which populations are most differentiated?
@@ -479,19 +537,19 @@ EvoFlow is intended for research workflows involving questions such as:
 - Are there potential barriers or corridors to gene flow?
 - Which genomic regions show unusual differentiation?
 - Are genotypes associated with environmental variation?
-- Can all of these analyses be reproduced from one documented project configuration?
+- Can these analyses be reproduced from one documented project configuration?
 
-The software will not replace biological interpretation. Its purpose is to make the computational path to that interpretation more coherent, transparent, and reproducible.
+EvoFlow will not replace biological interpretation. Its purpose is to make the computational path to that interpretation more coherent, transparent, testable, and reproducible.
 
 ---
 
 ## Contributing
 
-EvoFlow is under active development. Issues, suggestions, documentation improvements, test cases, and scientifically justified module proposals are welcome as the project matures.
+EvoFlow is under active development. Issues, test cases, documentation improvements, scientifically justified module proposals, and code contributions are welcome.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the current contribution guidance.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-For substantial new analysis modules, the intended standard is that the implementation should clearly define:
+Substantial analysis modules should clearly define:
 
 1. required inputs;
 2. output files;
@@ -507,7 +565,7 @@ For substantial new analysis modules, the intended standard is that the implemen
 
 EvoFlow does not yet have a versioned archival release or DOI.
 
-Until one is available, researchers referring to the project should cite the repository and include the software version or commit used in their analysis. Formal citation instructions will be added with the first archival release.
+Until one is available, researchers referring to the project should cite the repository and record the EvoFlow version or Git commit used. Formal citation instructions will be added with the first archival release.
 
 ---
 
