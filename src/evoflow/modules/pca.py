@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from evoflow.io.vcf import open_vcf_text, read_vcf_samples
+from evoflow.io.vcf import extract_biallelic_snp_dosages, open_vcf_text, read_vcf_samples
 from evoflow.modules.pca_plots import generate_pca_figures
 
 
@@ -22,60 +22,14 @@ class PCAResult:
     method: str = "allele-frequency-standardized streaming Gram-matrix PCA"
 
 
-def _parse_diploid_biallelic_dosage(gt: str) -> float | None:
-    if not gt or gt in {".", "./.", ".|."}:
-        return None
-
-    if "/" in gt:
-        parts = gt.split("/")
-    elif "|" in gt:
-        parts = gt.split("|")
-    else:
-        return None
-
-    if len(parts) != 2 or any(part == "." for part in parts):
-        return None
-
-    try:
-        alleles = [int(part) for part in parts]
-    except ValueError:
-        return None
-
-    if any(allele not in {0, 1} for allele in alleles):
-        return None
-    return float(sum(alleles))
-
-
 def _standardized_variant(fields: list[str], expected_samples: int) -> np.ndarray | None:
-    if len(fields) < 10:
+    dosage_values = extract_biallelic_snp_dosages(fields, expected_samples)
+    if dosage_values is None:
         return None
 
-    ref = fields[3]
-    alt_field = fields[4]
-    alts = [] if alt_field == "." else alt_field.split(",")
-    if len(ref) != 1 or len(alts) != 1 or len(alts[0]) != 1:
-        return None
-
-    format_keys = fields[8].split(":")
-    if "GT" not in format_keys:
-        return None
-    gt_index = format_keys.index("GT")
-
-    sample_fields = fields[9:]
-    if len(sample_fields) != expected_samples:
-        raise ValueError(
-            f"VCF record {fields[0]}:{fields[1]} has {len(sample_fields)} sample columns; "
-            f"expected {expected_samples}."
-        )
-
-    dosages = np.full(expected_samples, np.nan, dtype=float)
-    for index, sample_value in enumerate(sample_fields):
-        parts = sample_value.split(":")
-        gt = parts[gt_index] if gt_index < len(parts) else "."
-        dosage = _parse_diploid_biallelic_dosage(gt)
-        if dosage is not None:
-            dosages[index] = dosage
-
+    dosages = np.array(
+        [np.nan if dosage is None else dosage for dosage in dosage_values], dtype=float
+    )
     called = dosages[~np.isnan(dosages)]
     if called.size == 0:
         return None
