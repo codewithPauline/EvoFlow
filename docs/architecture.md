@@ -1,80 +1,256 @@
 # EvoFlow architecture
 
-EvoFlow is organized as a modular scientific-software system rather than a collection of analysis scripts. Configuration, input access, validation, analysis engines, visualization, orchestration, and reporting are separated so that each layer can evolve without tightly coupling the rest of the workflow.
+EvoFlow is organized as modular scientific software rather than a collection of analysis scripts. Configuration, genomic input access, metadata handling, validation, scientific engines, visualization, orchestration, and reporting are separated so that each layer can evolve without tightly coupling the rest of the workflow.
 
 ## Package layers
 
 - `evoflow.config` — project configuration and YAML serialization.
-- `evoflow.io` — genomic file access and biological metadata validation.
-- `evoflow.modules` — analysis engines, module-specific outputs, and visualization code.
-- `evoflow.core` — reserved for workflow orchestration, run manifests, provenance, dependency resolution, and restartable execution.
-- `evoflow.cli` — the user-facing command-line interface.
+- `evoflow.io` — VCF access, genotype extraction, metadata access, and input validation.
+- `evoflow.modules` — scientific analysis engines and module-specific plotting code.
+- `evoflow.core` — reserved for dependency resolution, workflow execution, manifests, provenance, checksums, restartability, and run lifecycle management.
+- `evoflow.cli` — user-facing command-line entry points and current input-routing policy.
 
-## Current QC data flow
+## Current analysis graph
 
 ```text
-          evoflow.yaml
-               |
-               v
-       EvoFlowConfig
-               |
-               v
-    strict input validation
-     /                   \
-    v                     v
-VCF / VCF.gz        metadata CSV
-    |                     |
-    +----------+----------+
-               |
-               v
-       streaming VCF parser
-               |
-      +--------+---------+
-      |        |         |
-      v        v         v
- sample QC  variant QC  run QC
-      |        |         |
-      +--------+---------+
-               |
-       +-------+--------+
-       |                |
-       v                v
- threshold filter    diagnostics
-       |                |
-       v                v
- filtered.vcf       PNG + PDF
-       |
-       +----------------------+
-               |
-               v
-      structured QC outputs
+                        evoflow.yaml
+                             |
+                             v
+                      EvoFlowConfig
+                             |
+                             v
+                   strict input validation
+                    /                \
+                   v                  v
+             VCF / VCF.gz       metadata CSV
+                   |                  |
+                   +--------+---------+
+                            |
+                            v
+                    +---------------+
+                    |   QC engine   |
+                    +---------------+
+                       |         |
+                       |         +-------------------------------+
+                       v                                         |
+                  filtered.vcf                                  |
+                    /       \                                    |
+                   /         \                                   |
+                  v           v                                  v
+          +-------------+  +----------------+          QC tables / figures
+          | LD pruning  |  | population     |
+          +-------------+  | statistics     |
+                  |        +-------+--------+
+                  v                |       |
+             ld_pruned.vcf         v       v
+                  |           diversity    FST
+                  v                |       |
+          +---------------+        v       v
+          |      PCA      |      tables + figures
+          +---------------+
+                  |
+                  v
+         scores/loadings/figures
 ```
 
-The QC engine streams VCF records instead of materializing the full file in memory. Global depth and genotype-quality statistics use running sums/counts, while MAF and missingness distributions use fixed-size histogram bins. This keeps the basic QC memory footprint driven primarily by sample-level state rather than total variant count.
+The graph is intentionally not a single linear chain. Different statistical questions require different preprocessing choices:
 
-## QC responsibilities
+- **PCA** prefers LD-pruned variants because correlated marker blocks can dominate ordination.
+- **Diversity and FST** prefer the QC-filtered variant set and do not automatically inherit LD thinning.
 
-`evoflow.io.vcf` is responsible for text VCF access and sample-header extraction. It supports uncompressed VCF and gzip/bgzip-compatible text streams. Native BCF support is intentionally not claimed yet.
+This input routing is explicit in the CLI rather than hidden inside the scientific functions.
 
-`evoflow.io.validation` verifies that required files exist and that VCF and metadata sample identifiers are non-empty, unique, and exactly concordant.
+## Input layer
 
-`evoflow.modules.qc` performs streaming genotype/variant summaries, threshold decisions, filtered VCF writing, and machine-readable QC outputs.
+### `evoflow.io.vcf`
 
-`evoflow.modules.qc_plots` converts the streaming summaries into diagnostic figures without requiring the complete per-variant metric arrays to be retained in memory.
+Responsibilities:
 
-## Module contract
+- stream uncompressed or gzip/bgzip-compatible text VCFs;
+- read sample IDs from the `#CHROM` header;
+- reject unsupported native BCF input with an explicit error;
+- parse usable diploid biallelic genotype dosages; and
+- extract per-record dosage vectors for downstream modules.
 
-As new modules are implemented, each should define:
+Shared genotype parsing prevents PCA, LD, diversity, and FST from independently implementing subtly different definitions of a usable genotype.
 
-1. required inputs and validation rules;
-2. configurable parameters and defaults;
-3. deterministic output locations;
-4. machine-readable result tables;
-5. scientific figures where appropriate;
-6. dependency and software-version information;
-7. provenance needed to reproduce the analysis; and
-8. tests covering both expected results and failure modes.
+### `evoflow.io.metadata`
+
+Responsibilities:
+
+- read metadata CSV files; and
+- map population labels to VCF sample indices while preserving VCF sample order.
+
+### `evoflow.io.validation`
+
+Responsibilities:
+
+- verify configured input files exist;
+- require a metadata `sample` column;
+- require unique, non-empty sample IDs; and
+- require exact VCF/metadata sample concordance.
+
+## QC engine
+
+`evoflow.modules.qc` performs one streaming VCF pass to calculate sample-, site-, and run-level metrics while applying configured variant thresholds. It writes:
+
+- run JSON summary;
+- sample QC table;
+- site QC table;
+- threshold-filtered VCF; and
+- compact histogram state used for large per-site distributions.
+
+Global depth and genotype-quality summaries use running sums/counts. MAF and missingness plots are generated from fixed-size histogram bins rather than complete in-memory vectors.
+
+`evoflow.modules.qc_plots` is responsible only for visualization and consumes already-computed QC state.
+
+## LD pruning engine
+
+`evoflow.modules.ld` performs a greedy physical sliding-window pruning algorithm on informative diploid biallelic SNPs.
+
+For each incoming SNP:
+
+1. retained SNPs outside the configured physical window are removed from the active comparison set;
+2. genotype-dosage `r²` is calculated against retained SNPs using pairwise-complete samples;
+3. if any retained SNP reaches the configured threshold, the current SNP is removed; otherwise it is retained;
+4. each removal records the blocking SNP and observed `r²`.
+
+Memory use is controlled by the physical active window rather than total chromosome length.
+
+The engine requires VCF positions to be sorted within chromosomes and writes pruning parameters into the output VCF header.
+
+## PCA engine
+
+`evoflow.modules.pca` operates on informative diploid biallelic SNPs.
+
+For SNP allele frequency `p`, dosage `g` is standardized as:
+
+```text
+(g - 2p) / sqrt(2p(1-p))
+```
+
+Missing calls are mean-imputed to `2p`, which becomes zero after standardization.
+
+Instead of materializing the full sample × SNP matrix `X`, the first VCF pass accumulates the sample Gram matrix:
+
+```text
+G = X X^T
+```
+
+This requires memory proportional primarily to the square of sample count rather than sample count × SNP count. Symmetric eigendecomposition of `G` produces sample principal-component scores. A second streaming pass projects SNP vectors onto the sample eigenvectors to calculate per-SNP loadings.
+
+`evoflow.modules.pca_plots` generates the explained-variance and PC1–PC2 figures from machine-readable PCA tables.
+
+## Population diversity engine
+
+`evoflow.modules.diversity` groups samples using metadata-defined populations and streams diploid biallelic SNP records.
+
+For each population/site combination with called genotypes it calculates:
+
+- call rate;
+- alternate-allele frequency;
+- MAF;
+- observed heterozygosity; and
+- expected heterozygosity `2p(1-p)`.
+
+Population summaries are arithmetic means across analyzed VCF variant records plus counts of observed and polymorphic sites.
+
+This is deliberately not labeled genome-wide nucleotide diversity because the current VCF-based implementation does not model invariant callable bases or a genome-wide callable denominator.
+
+`evoflow.modules.diversity_plots` renders population heterozygosity and population call-rate figures.
+
+## Hudson FST engine
+
+`evoflow.modules.fst` estimates pairwise Hudson FST for all metadata-defined population pairs.
+
+At each usable biallelic SNP, allele counts are used to calculate:
+
+- within-population pairwise diversity for each population;
+- mean within-population diversity;
+- between-population divergence;
+- site numerator = between divergence - mean within diversity; and
+- site denominator = between divergence.
+
+The multi-site estimate is formed from summed components:
+
+```text
+FST = sum(numerators) / sum(denominators)
+```
+
+Per-site negative FST estimates are retained rather than silently clamped to zero. Pairwise outputs include the number of denominator-positive sites contributing to each aggregate estimate.
+
+`evoflow.modules.fst_plots` consumes the symmetric FST matrix and renders a labeled heatmap.
+
+## CLI input-routing policy
+
+The current CLI keeps preprocessing decisions visible:
+
+### `evoflow ld-prune`
+
+```text
+QC filtered.vcf if available -> otherwise configured VCF
+```
+
+### `evoflow pca`
+
+```text
+LD-pruned VCF if available -> QC-filtered VCF if available -> configured VCF
+```
+
+### `evoflow diversity` and `evoflow fst`
+
+```text
+QC-filtered VCF if available -> otherwise configured VCF
+```
+
+`--use-raw` explicitly bypasses generated intermediates for the relevant command.
+
+## Deterministic output layout
+
+Current scientific modules write:
+
+```text
+evoflow-results/
+├── qc/
+├── ld/
+├── pca/
+├── diversity/
+└── fst/
+```
+
+Each directory contains machine-readable result files and, where appropriate, publication-oriented PNG/PDF figures.
+
+## Scientific module contract
+
+New modules should define:
+
+1. scientific question and estimator;
+2. required inputs;
+3. model assumptions;
+4. validation and failure rules;
+5. configurable parameters and defaults;
+6. deterministic output locations;
+7. machine-readable tables/summaries;
+8. scientific figures where appropriate;
+9. provenance needed to reproduce the result; and
+10. tests against known expected values and failure modes.
+
+## Current architectural boundaries
+
+The following are intentionally not hidden or treated as completed infrastructure:
+
+- native BCF backend;
+- genotype-level GQ filtering;
+- Hardy-Weinberg filtering;
+- generalized ploidy handling;
+- additional diversity estimators using invariant/callable bases;
+- FST uncertainty via blocks/jackknife;
+- ancestry/structure inference;
+- spatial, selection, and GEA engines;
+- centralized workflow executor;
+- run manifests/checksums/version capture; and
+- automated scientific reporting.
 
 ## Next architectural step
 
-The next major layer is a PCA engine that consumes QC-filtered biallelic genotypes, creates a sample-by-variant dosage matrix with documented missing-data handling, computes principal components, joins sample metadata, and writes both numerical scores and reproducible visualizations. Later, `evoflow.core` will coordinate these modules as an ordered workflow rather than requiring separate CLI invocations.
+The next major capability is the population-structure layer, followed by a formal orchestration layer that can resolve module dependencies and reproduce a full configured run from one command. The design goal is to preserve the current module independence while adding deterministic execution and provenance on top of it.
