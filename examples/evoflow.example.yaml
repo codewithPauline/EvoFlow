@@ -1,0 +1,12 @@
+project: salamander-demo
+vcf: data/variants.vcf
+metadata: data/samples.csv
+output_dir: evoflow-results
+modules:
+  - qc
+  - pca
+  - structure
+  - diversity
+  - fst
+  - spatial
+  - report
