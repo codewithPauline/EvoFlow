@@ -57,6 +57,13 @@ def test_run_qc_writes_expected_metrics(tmp_path: Path) -> None:
     assert variant_rows[2]["maf"] == ""
     assert variant_rows[2]["passes_qc"] == "True"
 
+    filtered_text = (qc_dir / "filtered.vcf").read_text(encoding="utf-8")
+    assert "##evoflow_qc_min_maf=0.3" in filtered_text
+    assert "##evoflow_qc_max_missing=0.4" in filtered_text
+    retained_records = [line for line in filtered_text.splitlines() if not line.startswith("#")]
+    assert len(retained_records) == 1
+    assert retained_records[0].startswith("chr1\t30\t")
+
 
 def test_gzipped_vcf_header_is_supported(tmp_path: Path) -> None:
     vcf = tmp_path / "tiny.vcf.gz"
