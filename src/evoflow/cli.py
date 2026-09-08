@@ -9,12 +9,21 @@ import yaml
 from evoflow import __version__
 from evoflow.config import EvoFlowConfig
 from evoflow.io.validation import validate_config
+from evoflow.modules.diversity import run_diversity
+from evoflow.modules.fst import run_fst
 from evoflow.modules.ld import run_ld_prune
 from evoflow.modules.pca import run_pca
 from evoflow.modules.qc import run_qc
 from evoflow.modules.registry import MODULES, validate_modules
 
 app = typer.Typer(help="EvoFlow — from variants to evolutionary insight.")
+
+
+def _qc_preferred_input(cfg: EvoFlowConfig, use_raw: bool) -> tuple[Path, str]:
+    filtered_vcf = cfg.output_dir / "qc" / "filtered.vcf"
+    if use_raw or not filtered_vcf.exists():
+        return cfg.vcf, "configured variant file"
+    return filtered_vcf, "QC-filtered variants"
 
 
 @app.command()
@@ -114,13 +123,8 @@ def ld_prune(
     for message in validate_config(cfg):
         typer.echo(f"✓ {message}")
 
-    filtered_vcf = cfg.output_dir / "qc" / "filtered.vcf"
-    input_vcf = cfg.vcf if use_raw or not filtered_vcf.exists() else filtered_vcf
-    if input_vcf == filtered_vcf:
-        typer.echo(f"✓ LD input: QC-filtered variants ({filtered_vcf})")
-    else:
-        typer.echo(f"✓ LD input: configured variant file ({cfg.vcf})")
-
+    input_vcf, source_label = _qc_preferred_input(cfg, use_raw)
+    typer.echo(f"✓ LD input: {source_label} ({input_vcf})")
     result = run_ld_prune(
         input_vcf,
         cfg.output_dir,
@@ -159,20 +163,18 @@ def pca(
     filtered_vcf = cfg.output_dir / "qc" / "filtered.vcf"
     if use_raw:
         input_vcf = cfg.vcf
+        source_label = "configured variant file"
     elif ld_vcf.exists():
         input_vcf = ld_vcf
+        source_label = "LD-pruned variants"
     elif filtered_vcf.exists():
         input_vcf = filtered_vcf
+        source_label = "QC-filtered variants"
     else:
         input_vcf = cfg.vcf
+        source_label = "configured variant file"
 
-    if input_vcf == ld_vcf:
-        typer.echo(f"✓ PCA input: LD-pruned variants ({ld_vcf})")
-    elif input_vcf == filtered_vcf:
-        typer.echo(f"✓ PCA input: QC-filtered variants ({filtered_vcf})")
-    else:
-        typer.echo(f"✓ PCA input: configured variant file ({cfg.vcf})")
-
+    typer.echo(f"✓ PCA input: {source_label} ({input_vcf})")
     result = run_pca(
         input_vcf,
         cfg.metadata,
@@ -184,6 +186,70 @@ def pca(
         f"{result.components} components"
     )
     typer.echo(f"✓ Results: {cfg.output_dir / 'pca'}")
+
+
+@app.command()
+def diversity(
+    config: Annotated[Path, typer.Argument(exists=True)],
+    population_column: Annotated[
+        str,
+        typer.Option(help="Metadata column defining populations."),
+    ] = "population",
+    use_raw: Annotated[
+        bool,
+        typer.Option("--use-raw", help="Use the configured VCF instead of QC filtered.vcf."),
+    ] = False,
+) -> None:
+    """Summarize population heterozygosity, MAF, and call rate across SNPs."""
+    cfg = EvoFlowConfig.from_yaml(config)
+    for message in validate_config(cfg):
+        typer.echo(f"✓ {message}")
+
+    input_vcf, source_label = _qc_preferred_input(cfg, use_raw)
+    typer.echo(f"✓ Diversity input: {source_label} ({input_vcf})")
+    result = run_diversity(
+        input_vcf,
+        cfg.metadata,
+        cfg.output_dir,
+        population_column=population_column,
+    )
+    typer.echo(
+        f"✓ Diversity complete: {result.populations} populations, "
+        f"{result.biallelic_snps} biallelic SNP records"
+    )
+    typer.echo(f"✓ Results: {cfg.output_dir / 'diversity'}")
+
+
+@app.command()
+def fst(
+    config: Annotated[Path, typer.Argument(exists=True)],
+    population_column: Annotated[
+        str,
+        typer.Option(help="Metadata column defining populations."),
+    ] = "population",
+    use_raw: Annotated[
+        bool,
+        typer.Option("--use-raw", help="Use the configured VCF instead of QC filtered.vcf."),
+    ] = False,
+) -> None:
+    """Estimate pairwise Hudson FST between metadata-defined populations."""
+    cfg = EvoFlowConfig.from_yaml(config)
+    for message in validate_config(cfg):
+        typer.echo(f"✓ {message}")
+
+    input_vcf, source_label = _qc_preferred_input(cfg, use_raw)
+    typer.echo(f"✓ FST input: {source_label} ({input_vcf})")
+    result = run_fst(
+        input_vcf,
+        cfg.metadata,
+        cfg.output_dir,
+        population_column=population_column,
+    )
+    typer.echo(
+        f"✓ FST complete: {result.population_pairs} population pairs across "
+        f"{result.biallelic_snps} biallelic SNP records"
+    )
+    typer.echo(f"✓ Results: {cfg.output_dir / 'fst'}")
 
 
 if __name__ == "__main__":
