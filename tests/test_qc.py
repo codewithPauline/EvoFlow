@@ -9,11 +9,12 @@ from evoflow.modules.qc import run_qc
 VCF_TEXT = """##fileformat=VCFv4.2
 ##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2
-chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT:DP\t0/1:10\t0/0:12
-chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT:DP\t./.:.\t0/1:8
-chr1\t30\t.\tG\tA,C\t.\tPASS\t.\tGT:DP\t1/2:20\t0/2:18
-chr1\t40\t.\tA\tAT\t.\tPASS\t.\tGT:DP\t0/1:7\t0/0:6
+chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT:DP:GQ\t0/1:10:40\t0/0:12:50
+chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT:DP:GQ\t./.:.:.\t0/1:8:35
+chr1\t30\t.\tG\tA,C\t.\tPASS\t.\tGT:DP:GQ\t1/2:20:60\t0/2:18:45
+chr1\t40\t.\tA\tAT\t.\tPASS\t.\tGT:DP:GQ\t0/1:7:20\t0/0:6:25
 """
 
 
@@ -36,23 +37,28 @@ def test_run_qc_writes_expected_metrics(tmp_path: Path) -> None:
     assert summary.missing_genotypes == 1
     assert summary.overall_call_rate == 0.875
     assert summary.mean_depth == 11.571429
+    assert summary.mean_gq == 39.285714
 
     qc_dir = tmp_path / "results" / "qc"
     stored_summary = json.loads((qc_dir / "qc_summary.json").read_text(encoding="utf-8"))
     assert stored_summary["retained_variants"] == 1
+    assert stored_summary["mean_gq"] == 39.285714
 
     with (qc_dir / "sample_qc.csv").open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert rows[0]["sample"] == "S1"
     assert float(rows[0]["call_rate"]) == 0.75
     assert float(rows[0]["heterozygosity"]) == 1.0
+    assert float(rows[0]["mean_gq"]) == 40.0
     assert rows[1]["sample"] == "S2"
     assert float(rows[1]["call_rate"]) == 1.0
     assert float(rows[1]["heterozygosity"]) == 0.5
+    assert float(rows[1]["mean_gq"]) == 38.75
 
     with (qc_dir / "variant_qc.csv").open(newline="", encoding="utf-8") as handle:
         variant_rows = list(csv.DictReader(handle))
     assert variant_rows[0]["maf"] == "0.25"
+    assert variant_rows[0]["mean_gq"] == "45.0"
     assert variant_rows[0]["passes_qc"] == "False"
     assert variant_rows[2]["maf"] == ""
     assert variant_rows[2]["passes_qc"] == "True"
