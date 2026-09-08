@@ -6,7 +6,6 @@ from pathlib import Path
 from evoflow.io.vcf import read_vcf_samples
 from evoflow.modules.qc import run_qc
 
-
 VCF_TEXT = """##fileformat=VCFv4.2
 ##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">
