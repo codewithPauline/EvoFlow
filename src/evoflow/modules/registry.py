@@ -2,6 +2,7 @@ from __future__ import annotations
 
 MODULES = {
     "qc": "Variant and sample quality control",
+    "ld": "Linkage disequilibrium pruning",
     "pca": "Principal component analysis",
     "structure": "Population structure / ancestry inference",
     "diversity": "Population diversity statistics",
