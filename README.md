@@ -1,5 +1,7 @@
 # EvoFlow
 
+[![CI](https://github.com/codewithPauline/EvoFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/codewithPauline/EvoFlow/actions/workflows/ci.yml)
+
 > **From variants to evolutionary insight.**
 
 EvoFlow is an open-source workflow platform for reproducible population and landscape genomics. It is designed to take researchers from variant data and sample metadata to quality control, population structure, differentiation, diversity, spatial analyses, selection scans, and publication-ready outputs through one consistent interface.
@@ -48,7 +50,7 @@ EvoFlow is in active early development. The first milestone establishes:
 - VCF and metadata input checks;
 - a modular analysis registry;
 - reproducible run directories and manifests;
-- automated tests and continuous integration.
+- automated tests and continuous integration across Python 3.10, 3.11, and 3.12.
 
 ## Installation (development)
 
