@@ -70,6 +70,20 @@ def test_run_qc_writes_expected_metrics(tmp_path: Path) -> None:
     assert len(retained_records) == 1
     assert retained_records[0].startswith("chr1\t30\t")
 
+    plot_stems = [
+        "sample_call_rate",
+        "sample_heterozygosity",
+        "sample_mean_depth",
+        "sample_mean_gq",
+        "variant_maf_distribution",
+        "variant_missingness_distribution",
+    ]
+    for stem in plot_stems:
+        for suffix in ("png", "pdf"):
+            plot = qc_dir / f"{stem}.{suffix}"
+            assert plot.exists()
+            assert plot.stat().st_size > 0
+
 
 def test_gzipped_vcf_header_is_supported(tmp_path: Path) -> None:
     vcf = tmp_path / "tiny.vcf.gz"
