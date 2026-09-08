@@ -5,7 +5,6 @@ import pytest
 from evoflow.config import EvoFlowConfig
 from evoflow.io.validation import validate_config
 
-
 VCF_TEXT = """##fileformat=VCFv4.2
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2
 chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/1\t0/0
