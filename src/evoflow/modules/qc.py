@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from evoflow.io.vcf import open_vcf_text, read_vcf_samples
+from evoflow.modules.qc_plots import write_qc_plots
 
 
 @dataclass(slots=True)
@@ -63,6 +64,7 @@ class QCSummary:
 
 
 _TRANSITIONS = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
+_HISTOGRAM_BINS = 20
 
 
 def _parse_genotype(gt: str) -> list[int] | None:
@@ -85,6 +87,14 @@ def _safe_float(value: str) -> float | None:
         return float(value)
     except ValueError:
         return None
+
+
+def _histogram_index(value: float, maximum: float) -> int:
+    if value <= 0.0:
+        return 0
+    if value >= maximum:
+        return _HISTOGRAM_BINS - 1
+    return int((value / maximum) * _HISTOGRAM_BINS)
 
 
 def run_qc(
@@ -120,6 +130,8 @@ def run_qc(
     depth_observations = 0
     gq_sum = 0.0
     gq_observations = 0
+    maf_histogram = [0] * _HISTOGRAM_BINS
+    missingness_histogram = [0] * _HISTOGRAM_BINS
 
     variant_path = qc_dir / "variant_qc.csv"
     filtered_vcf_path = qc_dir / "filtered.vcf"
@@ -251,6 +263,8 @@ def run_qc(
                 site_total = site_called + site_missing
                 call_rate = site_called / site_total if site_total else 0.0
                 missing_rate = 1.0 - call_rate
+                missingness_histogram[_histogram_index(missing_rate, 1.0)] += 1
+
                 total_alleles = sum(allele_counts)
                 alt_count = sum(allele_counts[1:])
                 alt_frequency = alt_count / total_alleles if total_alleles else None
@@ -259,6 +273,7 @@ def run_qc(
                 if is_biallelic and total_alleles:
                     ref_frequency = allele_counts[0] / total_alleles
                     maf = min(ref_frequency, 1.0 - ref_frequency)
+                    maf_histogram[_histogram_index(maf, 0.5)] += 1
 
                 passes_missing = missing_rate <= max_missing
                 passes_maf = maf is None or maf >= min_maf
@@ -293,6 +308,7 @@ def run_qc(
                     }
                 )
 
+    sample_rows = [stat.to_row() for stat in sample_stats]
     sample_path = qc_dir / "sample_qc.csv"
     with sample_path.open("w", newline="", encoding="utf-8") as sample_handle:
         fieldnames = [
@@ -307,7 +323,7 @@ def run_qc(
         ]
         writer = csv.DictWriter(sample_handle, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(stat.to_row() for stat in sample_stats)
+        writer.writerows(sample_rows)
 
     genotype_calls = called_genotypes + missing_genotypes
     overall_call_rate = called_genotypes / genotype_calls if genotype_calls else 0.0
@@ -337,4 +353,13 @@ def run_qc(
 
     summary_path = qc_dir / "qc_summary.json"
     summary_path.write_text(json.dumps(asdict(summary), indent=2) + "\n", encoding="utf-8")
+
+    write_qc_plots(
+        qc_dir,
+        sample_rows,
+        maf_histogram=maf_histogram,
+        missingness_histogram=missingness_histogram,
+        has_depth=depth_observations > 0,
+        has_gq=gq_observations > 0,
+    )
     return summary
