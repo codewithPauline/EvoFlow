@@ -24,7 +24,7 @@ def version() -> None:
 @app.command()
 def init(
     project: Annotated[str, typer.Option(help="Project name.")],
-    vcf: Annotated[Path, typer.Option(help="Input VCF/BCF path.")],
+    vcf: Annotated[Path, typer.Option(help="Input VCF or VCF.gz path.")],
     metadata: Annotated[Path, typer.Option(help="Sample metadata CSV path.")],
     output: Annotated[Path, typer.Option(help="Configuration file to create.")] = Path(
         "evoflow.yaml"
