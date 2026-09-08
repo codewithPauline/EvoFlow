@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evoflow"
+version = "0.1.0"
+description = "Reproducible population and landscape genomics workflows from variants to evolutionary insight."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Pauline Owusu-Ansah"}]
+keywords = ["population-genomics", "evolutionary-biology", "bioinformatics", "landscape-genomics", "vcf"]
+dependencies = [
+  "typer>=0.12",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+evoflow = "evoflow.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evoflow"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
